@@ -44,7 +44,7 @@ export default function DiscoverScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.eyebrow}>HOUSTON · TODAY</Text>
-          <Text style={styles.title}>Around You</Text>
+          <Text style={styles.title}>around you</Text>
         </View>
         <Text style={styles.sub}>What's actually happening, told by locals.</Text>
       </View>
@@ -75,10 +75,10 @@ export default function DiscoverScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-  eyebrow: { color: colors.primary, fontFamily: fonts.sansBold, fontSize: 11, letterSpacing: 2.5 },
-  title: { fontFamily: fonts.serifBold, fontSize: 32, color: colors.textPrimary, marginTop: 2 },
-  sub: { fontFamily: fonts.sans, fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+  eyebrow: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 2.5 },
+  title: { fontFamily: fonts.displayXL, fontSize: 32, color: colors.textPrimary, marginTop: 2 },
+  sub: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, marginTop: 4 },
   scroll: { paddingTop: 14, paddingBottom: 40 },
   center: { paddingVertical: 60, alignItems: "center" },
-  empty: { color: colors.textSecondary, fontFamily: fonts.sans },
+  empty: { color: colors.textSecondary, fontFamily: fonts.body },
 });

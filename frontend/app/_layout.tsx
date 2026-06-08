@@ -6,15 +6,15 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import {
-  PlayfairDisplay_600SemiBold,
-  PlayfairDisplay_700Bold,
-} from "@expo-google-fonts/playfair-display";
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from "@expo-google-fonts/inter";
 import {
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-} from "@expo-google-fonts/manrope";
+  BricolageGrotesque_700Bold,
+  BricolageGrotesque_800ExtraBold,
+} from "@expo-google-fonts/bricolage-grotesque";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/auth";
@@ -25,12 +25,12 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const [iconsLoaded, iconErr] = useIconFonts();
   const [textFontsLoaded] = useFonts({
-    PlayfairDisplay_600SemiBold,
-    PlayfairDisplay_700Bold,
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    BricolageGrotesque_700Bold,
+    BricolageGrotesque_800ExtraBold,
   });
 
   const ready = (iconsLoaded || iconErr) && textFontsLoaded;
@@ -47,7 +47,7 @@ export default function RootLayout() {
         <AuthProvider>
           <SocialProvider>
             <StatusBar style="dark" />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FDFCF8" } }} />
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FFF8F2" } }} />
           </SocialProvider>
         </AuthProvider>
       </SafeAreaProvider>

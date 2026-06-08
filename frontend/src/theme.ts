@@ -1,43 +1,40 @@
-// Theme constants for "Around You"
+// Theme constants — "around you" — warm gradient identity
 export const colors = {
-  background: "#FDFCF8",
+  background: "#FFF8F2",
   surface: "#FFFFFF",
-  surfaceAlt: "#F5F2EC",
-  primary: "#B25E46",
-  primaryDark: "#944833",
-  secondary: "#2C4035",
-  accent: "#D19C4C",
-  textPrimary: "#1C1917",
-  textSecondary: "#57534E",
-  textMuted: "#8B847C",
-  border: "#E7E5DF",
-  overlay: "rgba(0,0,0,0.55)",
+  surfaceAlt: "#FFEDE0",
+  primary: "#F26B3A", // warm orange
+  pink: "#E64C8B",
+  purple: "#7C3AED",
+  accent: "#FFB85C",
+  textPrimary: "#1A1320",
+  textSecondary: "#5B5365",
+  textMuted: "#8E8696",
+  border: "#F1E4D6",
+  overlay: "rgba(26,19,32,0.55)",
 };
 
+// Warm gradient: orange → pink → purple
+export const warmGradient = ["#F26B3A", "#E64C8B", "#7C3AED"] as const;
+export const warmGradientSoft = ["#FFB85C", "#F26B3A", "#E64C8B"] as const;
+
 export const radii = {
-  sm: 8,
-  md: 14,
-  lg: 20,
-  xl: 28,
+  sm: 12,
+  md: 18,
+  lg: 24,
+  xl: 32,
   pill: 999,
 };
 
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  xxl: 32,
-};
+export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 
 export const fonts = {
-  serif: "PlayfairDisplay_600SemiBold",
-  serifBold: "PlayfairDisplay_700Bold",
-  sans: "Manrope_400Regular",
-  sansMedium: "Manrope_500Medium",
-  sansSemi: "Manrope_600SemiBold",
-  sansBold: "Manrope_700Bold",
+  display: "BricolageGrotesque_700Bold", // Clash Display substitute
+  displayXL: "BricolageGrotesque_800ExtraBold",
+  body: "Inter_400Regular",
+  bodyMed: "Inter_500Medium",
+  bodySemi: "Inter_600SemiBold",
+  bodyBold: "Inter_700Bold",
 };
 
 export const CATEGORIES = [

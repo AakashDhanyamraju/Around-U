@@ -69,11 +69,11 @@ export default function SavedScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  eyebrow: { color: colors.primary, fontFamily: fonts.sansBold, fontSize: 11, letterSpacing: 2.5 },
-  title: { fontFamily: fonts.serifBold, fontSize: 32, color: colors.textPrimary, marginTop: 2 },
-  sub: { fontFamily: fonts.sans, fontSize: 13, color: colors.textSecondary, marginTop: 4 },
+  eyebrow: { color: colors.primary, fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 2.5 },
+  title: { fontFamily: fonts.displayXL, fontSize: 32, color: colors.textPrimary, marginTop: 2 },
+  sub: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, marginTop: 4 },
   center: { paddingVertical: 60, alignItems: "center" },
   empty: { paddingHorizontal: 30, paddingVertical: 60, alignItems: "center", gap: 8 },
-  emptyTitle: { fontFamily: fonts.serifBold, fontSize: 20, color: colors.textPrimary },
-  emptyBody: { fontFamily: fonts.sans, fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 20 },
+  emptyTitle: { fontFamily: fonts.displayXL, fontSize: 20, color: colors.textPrimary },
+  emptyBody: { fontFamily: fonts.body, fontSize: 14, color: colors.textSecondary, textAlign: "center", lineHeight: 20 },
 });

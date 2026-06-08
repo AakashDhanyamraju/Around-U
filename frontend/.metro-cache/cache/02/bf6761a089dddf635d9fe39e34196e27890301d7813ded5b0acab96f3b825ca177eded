@@ -1,0 +1,1 @@
+{"dependencies":[],"output":[{"data":{"code":"__d(function (global, require, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {\n  module.exports = \"/assets/node_modules/@expo-google-fonts/inter/900Black/Inter_900Black.bcec6eda9700a81ba92c483a2f2c02c1.ttf\";\n});","lineCount":3,"map":[[3,3]],"functionMap":null,"hasCjsExports":true},"type":"js/module/asset"}]}

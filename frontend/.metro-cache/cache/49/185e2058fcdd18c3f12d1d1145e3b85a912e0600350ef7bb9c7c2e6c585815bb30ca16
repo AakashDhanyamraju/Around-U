@@ -1,0 +1,1 @@
+{"dependencies":[],"output":[{"data":{"code":"__d(function (global, require, _$$_IMPORT_DEFAULT, _$$_IMPORT_ALL, module, exports, _dependencyMap) {\n  module.exports = \"/assets/node_modules/@expo-google-fonts/inter/700Bold/Inter_700Bold.6e237de4f1f413afa2fcc45c77ac343a.ttf\";\n});","lineCount":3,"map":[[3,3]],"functionMap":null,"hasCjsExports":true},"type":"js/module/asset"}]}

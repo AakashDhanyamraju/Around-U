@@ -14,7 +14,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
-        tabBarLabelStyle: { fontFamily: fonts.sansSemi, fontSize: 11, marginTop: 2 },
+        tabBarLabelStyle: { fontFamily: fonts.bodySemi, fontSize: 11, marginTop: 2 },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,

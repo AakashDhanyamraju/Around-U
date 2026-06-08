@@ -173,8 +173,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  metaChipText: { fontFamily: fonts.sansSemi, fontSize: 11, color: colors.textSecondary, letterSpacing: 0.5 },
-  caption: { fontFamily: fonts.serif, fontSize: 22, color: colors.textPrimary, lineHeight: 32 },
+  metaChipText: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.textSecondary, letterSpacing: 0.5 },
+  caption: { fontFamily: fonts.display, fontSize: 22, color: colors.textPrimary, lineHeight: 32 },
   locationCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     marginTop: 18,
   },
-  locationText: { fontFamily: fonts.sansSemi, fontSize: 14, color: colors.textPrimary },
+  locationText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.textPrimary },
   creatorCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -200,8 +200,8 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   creatorAvatar: { width: 48, height: 48, borderRadius: 24 },
-  creatorName: { fontFamily: fonts.sansBold, fontSize: 15, color: colors.textPrimary },
-  creatorHandle: { fontFamily: fonts.sans, fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  creatorName: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.textPrimary },
+  creatorHandle: { fontFamily: fonts.body, fontSize: 12, color: colors.textSecondary, marginTop: 1 },
   followBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   followBtnActive: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
-  followText: { color: "#fff", fontFamily: fonts.sansBold, fontSize: 12 },
+  followText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 12 },
   followTextActive: { color: colors.textPrimary },
-  relatedTitle: { fontFamily: fonts.serifBold, fontSize: 20, color: colors.textPrimary },
+  relatedTitle: { fontFamily: fonts.displayXL, fontSize: 20, color: colors.textPrimary },
 });

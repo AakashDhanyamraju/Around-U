@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   chipInactive: { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
-  chipText: { fontSize: 13, fontFamily: fonts.sansSemi },
+  chipText: { fontSize: 13, fontFamily: fonts.bodySemi },
   chipTextActive: { color: "#FFFFFF" },
   chipTextInactive: { color: colors.textSecondary },
 });
