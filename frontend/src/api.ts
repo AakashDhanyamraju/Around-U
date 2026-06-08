@@ -17,13 +17,14 @@ export async function clearToken() {
 
 export async function api<T = any>(
   path: string,
-  options: { method?: string; body?: any; auth?: boolean } = {},
+  options: { method?: string; body?: any; auth?: boolean; adminKey?: string } = {},
 ): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (options.auth !== false) {
     const t = await getToken();
     if (t) headers.Authorization = `Bearer ${t}`;
   }
+  if (options.adminKey) headers["X-Admin-Secret"] = options.adminKey;
   const res = await fetch(`${BASE}/api${path}`, {
     method: options.method || "GET",
     headers,

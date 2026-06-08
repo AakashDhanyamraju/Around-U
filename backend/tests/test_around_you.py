@@ -5,6 +5,9 @@ import requests
 
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://community-houston.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
+ADMIN_SECRET = os.environ.get("ADMIN_API_KEY", "2CqEcj2JlHDJqqEvfK4RywE2I_aaETN_")
+ADMIN_HDR = {"X-Admin-Secret": ADMIN_SECRET}
+SEED_CREATOR_IDS = {"cr_morteza", "cr_houstonfoodie", "cr_aroundhtx", "cr_bayouwalks"}
 
 
 @pytest.fixture(scope="module")
@@ -96,7 +99,7 @@ class TestCreators:
         assert r.status_code == 404
 
 
-# ---------- Admin (open) ----------
+# ---------- Admin (protected by X-Admin-Secret header) ----------
 class TestAdmin:
     def test_admin_create_creator_and_post(self, s):
         payload = {
@@ -106,7 +109,7 @@ class TestAdmin:
             "avatar": "https://example.com/a.jpg",
             "categories": ["Food"],
         }
-        r = s.post(f"{API}/admin/creators", json=payload, timeout=20)
+        r = s.post(f"{API}/admin/creators", json=payload, headers=ADMIN_HDR, timeout=20)
         assert r.status_code == 200
         created = r.json()
         assert created["name"] == "TEST_Creator"
@@ -128,14 +131,12 @@ class TestAdmin:
             "lat": 29.76,
             "lng": -95.36,
         }
-        rp = s.post(f"{API}/admin/posts", json=post_payload, timeout=20)
+        rp = s.post(f"{API}/admin/posts", json=post_payload, headers=ADMIN_HDR, timeout=20)
         assert rp.status_code == 200
         post = rp.json()
         assert post["creator_id"] == cid
         assert post["caption"] == "TEST_post caption"
         assert "_id" not in post
-
-        # Cleanup via direct mongo not allowed here; leave TEST_ data identifiable.
 
 
 # ---------- Auth protection ----------
@@ -258,3 +259,217 @@ class TestSeedV3Ingest:
         n = [p for p in r_none.json() if p["post_id"].startswith("po_seed_")]
         assert len(a) == len(n) == 21
         assert sorted(p["post_id"] for p in a) == sorted(p["post_id"] for p in n)
+
+
+# ---------- Admin auth (X-Admin-Secret) + cleanup/delete ----------
+class TestAdminAuth:
+    """Verify the new X-Admin-Secret protection on /api/admin/* routes and
+    the cleanup/delete endpoints. Each mutating test cleans up after itself.
+    """
+
+    creator_payload = {
+        "handle": "@test_admin_auth",
+        "name": "TEST_AdminAuth",
+        "bio": "TEST",
+        "avatar": "https://example.com/a.jpg",
+        "categories": ["Food"],
+    }
+
+    def _post_payload(self, creator_id):
+        return {
+            "creator_id": creator_id,
+            "image": "https://example.com/p.jpg",
+            "caption": "TEST_admin_auth post",
+            "category": "Food",
+            "neighborhood": "TEST_hood",
+        }
+
+    # POST /api/admin/creators auth
+    def test_create_creator_without_header_401(self, s):
+        r = s.post(f"{API}/admin/creators", json=self.creator_payload, timeout=20)
+        assert r.status_code == 401, f"expected 401, got {r.status_code}: {r.text}"
+
+    def test_create_creator_with_wrong_header_401(self, s):
+        r = s.post(
+            f"{API}/admin/creators",
+            json=self.creator_payload,
+            headers={"X-Admin-Secret": "definitely_not_the_real_key"},
+            timeout=20,
+        )
+        assert r.status_code == 401
+
+    def test_create_creator_with_correct_header_200(self, s):
+        r = s.post(f"{API}/admin/creators", json=self.creator_payload, headers=ADMIN_HDR, timeout=20)
+        assert r.status_code == 200, r.text
+        created = r.json()
+        assert created["name"] == "TEST_AdminAuth"
+        assert "_id" not in created
+        cid = created["creator_id"]
+        # Verify persisted
+        listing = s.get(f"{API}/creators", timeout=20).json()
+        assert any(c["creator_id"] == cid for c in listing)
+        # Cleanup
+        d = s.delete(f"{API}/admin/creators/{cid}", headers=ADMIN_HDR, timeout=20)
+        assert d.status_code == 200
+
+    # POST /api/admin/posts auth (same 401/401/200 pattern)
+    def test_create_post_without_header_401(self, s):
+        r = s.post(f"{API}/admin/posts", json=self._post_payload("cr_morteza"), timeout=20)
+        assert r.status_code == 401
+
+    def test_create_post_with_wrong_header_401(self, s):
+        r = s.post(
+            f"{API}/admin/posts",
+            json=self._post_payload("cr_morteza"),
+            headers={"X-Admin-Secret": "wrong"},
+            timeout=20,
+        )
+        assert r.status_code == 401
+
+    def test_create_post_with_correct_header_200(self, s):
+        # Create a throwaway creator first so cleanup is well-isolated
+        cr = s.post(f"{API}/admin/creators", json=self.creator_payload, headers=ADMIN_HDR, timeout=20)
+        assert cr.status_code == 200
+        cid = cr.json()["creator_id"]
+
+        r = s.post(f"{API}/admin/posts", json=self._post_payload(cid), headers=ADMIN_HDR, timeout=20)
+        assert r.status_code == 200, r.text
+        post = r.json()
+        assert post["creator_id"] == cid
+        assert post["caption"] == "TEST_admin_auth post"
+        assert "_id" not in post
+
+        # Cleanup: deleting the creator should also delete its posts (verified in a later test)
+        d = s.delete(f"{API}/admin/creators/{cid}", headers=ADMIN_HDR, timeout=20)
+        assert d.status_code == 200
+
+    # DELETE /api/admin/posts/{id} auth
+    def test_delete_post_requires_header(self, s):
+        # Create a post via admin
+        cr = s.post(f"{API}/admin/creators", json=self.creator_payload, headers=ADMIN_HDR, timeout=20)
+        cid = cr.json()["creator_id"]
+        rp = s.post(f"{API}/admin/posts", json=self._post_payload(cid), headers=ADMIN_HDR, timeout=20)
+        pid = rp.json()["post_id"]
+
+        # Without header -> 401
+        r401 = s.delete(f"{API}/admin/posts/{pid}", timeout=20)
+        assert r401.status_code == 401
+
+        # With header -> 200 + deleted=1
+        r_ok = s.delete(f"{API}/admin/posts/{pid}", headers=ADMIN_HDR, timeout=20)
+        assert r_ok.status_code == 200
+        assert r_ok.json().get("deleted") == 1
+
+        # Verify post is gone
+        g = s.get(f"{API}/posts/{pid}", timeout=20)
+        assert g.status_code == 404
+
+        # Cleanup creator
+        s.delete(f"{API}/admin/creators/{cid}", headers=ADMIN_HDR, timeout=20)
+
+    # DELETE /api/admin/creators/{id} auth + cascades to posts
+    def test_delete_creator_requires_header_and_cascades_posts(self, s):
+        cr = s.post(f"{API}/admin/creators", json=self.creator_payload, headers=ADMIN_HDR, timeout=20)
+        assert cr.status_code == 200
+        cid = cr.json()["creator_id"]
+        # Create two posts under this creator
+        p1 = s.post(f"{API}/admin/posts", json=self._post_payload(cid), headers=ADMIN_HDR, timeout=20).json()
+        p2 = s.post(f"{API}/admin/posts", json=self._post_payload(cid), headers=ADMIN_HDR, timeout=20).json()
+
+        # Without header -> 401, posts still exist
+        r401 = s.delete(f"{API}/admin/creators/{cid}", timeout=20)
+        assert r401.status_code == 401
+        assert s.get(f"{API}/creators/{cid}", timeout=20).status_code == 200
+
+        # With header -> 200, cascades posts
+        r_ok = s.delete(f"{API}/admin/creators/{cid}", headers=ADMIN_HDR, timeout=20)
+        assert r_ok.status_code == 200
+        body = r_ok.json()
+        assert body.get("deleted_creator") == 1
+        assert body.get("deleted_posts") == 2
+
+        # Verify creator gone and posts gone
+        assert s.get(f"{API}/creators/{cid}", timeout=20).status_code == 404
+        for pid in (p1["post_id"], p2["post_id"]):
+            assert s.get(f"{API}/posts/{pid}", timeout=20).status_code == 404
+
+    # POST /api/admin/cleanup auth + seed preservation
+    def test_cleanup_requires_header(self, s):
+        r = s.post(f"{API}/admin/cleanup", timeout=20)
+        assert r.status_code == 401
+
+    def test_cleanup_preserves_seed_and_removes_non_seed(self, s):
+        # Create some non-seed records first
+        cr = s.post(f"{API}/admin/creators", json=self.creator_payload, headers=ADMIN_HDR, timeout=20)
+        assert cr.status_code == 200
+        cid = cr.json()["creator_id"]
+        assert cid not in SEED_CREATOR_IDS
+        rp = s.post(f"{API}/admin/posts", json=self._post_payload(cid), headers=ADMIN_HDR, timeout=20)
+        assert rp.status_code == 200
+        pid = rp.json()["post_id"]
+        assert not pid.startswith("po_seed_")
+
+        # Sanity: extras visible pre-cleanup
+        pre_creators = {c["creator_id"] for c in s.get(f"{API}/creators", timeout=20).json()}
+        pre_posts = {p["post_id"] for p in s.get(f"{API}/posts", params={"limit": 500}, timeout=20).json()}
+        assert cid in pre_creators
+        assert pid in pre_posts
+
+        # Cleanup
+        c = s.post(f"{API}/admin/cleanup", headers=ADMIN_HDR, timeout=20)
+        assert c.status_code == 200, c.text
+        body = c.json()
+        assert body.get("deleted_creators", 0) >= 1
+        assert body.get("deleted_posts", 0) >= 1
+
+        # Verify seed survives
+        creators_after = s.get(f"{API}/creators", timeout=20).json()
+        creator_ids = {c["creator_id"] for c in creators_after}
+        assert creator_ids == SEED_CREATOR_IDS, (
+            f"after cleanup, expected exactly seed creators, got {creator_ids}"
+        )
+
+        posts_after = s.get(f"{API}/posts", params={"limit": 500}, timeout=20).json()
+        post_ids = {p["post_id"] for p in posts_after}
+        assert len(posts_after) == 21, f"expected 21 seed posts after cleanup, got {len(posts_after)}"
+        assert all(p["post_id"].startswith("po_seed_") for p in posts_after)
+        # The non-seed records we created are gone
+        assert cid not in creator_ids
+        assert pid not in post_ids
+
+
+# ---------- Lifespan migration regression ----------
+class TestLifespanRegression:
+    """Smoke tests confirming the @app.on_event -> lifespan() migration still
+    boots the app, runs the seed migration, and serves the 21-post / 4-creator
+    baseline."""
+
+    def test_root_alive(self, s):
+        r = s.get(f"{API}/", timeout=20)
+        assert r.status_code == 200
+        assert r.json().get("message")
+
+    def test_seed_baseline_21_posts(self, s):
+        r = s.get(f"{API}/posts", params={"limit": 200}, timeout=20)
+        assert r.status_code == 200
+        seed_posts = [p for p in r.json() if p["post_id"].startswith("po_seed_")]
+        assert len(seed_posts) == 21
+
+    def test_seed_baseline_4_creators(self, s):
+        r = s.get(f"{API}/creators", timeout=20)
+        assert r.status_code == 200
+        ids = {c["creator_id"] for c in r.json()} & SEED_CREATOR_IDS
+        assert ids == SEED_CREATOR_IDS
+
+    def test_po_seed_000_reachable(self, s):
+        r = s.get(f"{API}/posts/po_seed_000", timeout=20)
+        assert r.status_code == 200
+        assert r.json()["post"]["post_id"] == "po_seed_000"
+
+    def test_category_filter_real_estate(self, s):
+        r = s.get(f"{API}/posts", params={"category": "Real Estate"}, timeout=20)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) > 0
+        assert all(p["category"] == "Real Estate" for p in data)
+

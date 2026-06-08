@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
+from contextlib import asynccontextmanager
 
 
 ROOT_DIR = Path(__file__).parent
@@ -19,7 +20,20 @@ mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
-app = FastAPI()
+# Shared secret guarding the internal /api/admin/* write endpoints.
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # startup
+    await run_migrations_and_seed()
+    yield
+    # shutdown
+    client.close()
+
+
+app = FastAPI(lifespan=lifespan)
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -288,19 +302,52 @@ async def unfollow(creator_id: str, user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
-# ---------- Admin (open for MVP) ----------
-@api_router.post("/admin/creators")
+# ---------- Admin (protected by X-Admin-Secret header) ----------
+async def require_admin(x_admin_secret: Optional[str] = Header(None)):
+    if not ADMIN_API_KEY:
+        # fail closed: never leave admin endpoints open if the key is unset
+        raise HTTPException(status_code=503, detail="Admin API not configured")
+    if not x_admin_secret or x_admin_secret != ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing admin credentials")
+    return True
+
+
+@api_router.post("/admin/creators", dependencies=[Depends(require_admin)])
 async def admin_add_creator(c: CreatorCreate):
     creator = Creator(creator_id=f"cr_{uuid.uuid4().hex[:8]}", **c.dict()).dict()
     await db.creators.insert_one(creator)
     return await db.creators.find_one({"creator_id": creator["creator_id"]}, {"_id": 0})
 
 
-@api_router.post("/admin/posts")
+@api_router.post("/admin/posts", dependencies=[Depends(require_admin)])
 async def admin_add_post(p: PostCreate):
     post = Post(post_id=f"po_{uuid.uuid4().hex[:8]}", **p.dict()).dict()
     await db.posts.insert_one(post)
     return await db.posts.find_one({"post_id": post["post_id"]}, {"_id": 0})
+
+
+@api_router.delete("/admin/posts/{post_id}", dependencies=[Depends(require_admin)])
+async def admin_delete_post(post_id: str):
+    res = await db.posts.delete_one({"post_id": post_id})
+    return {"deleted": res.deleted_count}
+
+
+@api_router.delete("/admin/creators/{creator_id}", dependencies=[Depends(require_admin)])
+async def admin_delete_creator(creator_id: str):
+    res = await db.creators.delete_one({"creator_id": creator_id})
+    # also remove that creator's posts to avoid orphans
+    posts_res = await db.posts.delete_many({"creator_id": creator_id})
+    return {"deleted_creator": res.deleted_count, "deleted_posts": posts_res.deleted_count}
+
+
+@api_router.post("/admin/cleanup", dependencies=[Depends(require_admin)])
+async def admin_cleanup():
+    """Remove non-seed (admin/test created) creators & posts. Seed docs use the
+    po_seed_* / cr_<known> ids and are preserved."""
+    seed_creator_ids = [c["creator_id"] for c in SEED_CREATORS]
+    posts_res = await db.posts.delete_many({"post_id": {"$not": {"$regex": "^po_seed_"}}})
+    creators_res = await db.creators.delete_many({"creator_id": {"$nin": seed_creator_ids}})
+    return {"deleted_posts": posts_res.deleted_count, "deleted_creators": creators_res.deleted_count}
 
 
 # ---------- Seed ----------
@@ -502,8 +549,7 @@ SEED_POSTS = [
 SEED_VERSION = 3  # bump to force a reseed of creators + posts
 
 
-@app.on_event("startup")
-async def startup():
+async def run_migrations_and_seed():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.user_sessions.create_index("session_token", unique=True)
@@ -539,11 +585,6 @@ async def startup():
         await db.app_meta.update_one(
             {"_id": "seed"}, {"$set": {"seed_version": SEED_VERSION}}, upsert=True
         )
-
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
 
 
 @api_router.get("/")

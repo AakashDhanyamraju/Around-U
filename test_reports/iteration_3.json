@@ -1,0 +1,40 @@
+{
+  "summary": "Backend-only verification of (1) the @app.on_event -> FastAPI lifespan migration and (2) the new X-Admin-Secret protection + cleanup/delete admin endpoints. Extended /app/backend/tests/test_around_you.py with two new pytest classes: TestAdminAuth (10 tests covering 401-without-header / 401-with-wrong-header / 200-with-correct-header for POST /api/admin/creators, POST /api/admin/posts, DELETE /api/admin/posts/{id}, DELETE /api/admin/creators/{id} including post cascade, POST /api/admin/cleanup including seed preservation) and TestLifespanRegression (5 tests covering root, 21-post baseline, 4 seed creators, po_seed_000 reachable, Real Estate category filter). Also updated existing TestAdmin to send the admin header. Final result: 42/42 PASSED. Final POST /api/admin/cleanup with the correct header restored the baseline to exactly 21 po_seed_* posts and the 4 known seed creators (cr_morteza, cr_houstonfoodie, cr_aroundhtx, cr_bayouwalks) so seed data is clean for the user.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_around_you.py",
+    "/app/test_reports/pytest/around_you_results.xml"
+  ],
+  "action_items": [
+    "Frontend admin screen integration (X-Admin-Secret stored in SecureStore) was NOT exercised in this backend-only iteration. Main agent or a frontend-pass should verify the /admin screen sends the header correctly and surfaces 401s when the key is wrong.",
+    "Consider also gating the existing TestAdmin class behind an env-var flag so contributor runs against a shared environment can opt out of creating throwaway records (low priority — TestAdminAuth already self-cleans)."
+  ],
+  "critical_code_review_comments": [
+    "require_admin in server.py fails closed when ADMIN_API_KEY is unset (returns 503). Good defensive behavior — keep it.",
+    "admin_cleanup uses {'$not': {'$regex': '^po_seed_'}} on post_id and {'$nin': seed_creator_ids} on creator_id. This is correct, but a future refactor that renames seed ids would silently start deleting them. Worth a small constant + comment when this file is split into modules.",
+    "DELETE /api/admin/posts/{id} returns {'deleted': 0} for missing ids (no 404). Acceptable, but worth documenting in the admin screen UX so users get feedback when nothing was deleted.",
+    "lifespan() correctly awaits run_migrations_and_seed() and closes the Motor client on shutdown — verified by a clean cold-boot through supervisor and a fresh seed-state assertion. No regression vs the old @app.on_event handlers.",
+    "server.py is still a single 600-line file mixing auth, content, admin and seed. Within guideline but worth splitting (routers/seed.py, routers/admin.py) before adding more features."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_around_you.py (added ADMIN_HDR/SEED_CREATOR_IDS constants; updated existing TestAdmin to send X-Admin-Secret; appended TestAdminAuth class with 10 tests and TestLifespanRegression class with 5 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (42/42)",
+    "frontend": "not tested (backend-only per request)"
+  },
+  "seed_data_creation": "TestAdminAuth and the existing TestAdmin class create transient TEST_AdminAuth / TEST_Creator records via POST /api/admin/{creators,posts}; TestAdminAuth tests self-clean (DELETE creator cascades posts), and the final test (test_cleanup_preserves_seed_and_removes_non_seed) plus a follow-up manual curl POST /api/admin/cleanup restore the database to exactly 21 po_seed_* posts and the 4 known seed creators.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend is healthy on https://community-houston.preview.emergentagent.com. Admin secret = 2CqEcj2JlHDJqqEvfK4RywE2I_aaETN_ via header X-Admin-Secret. To rerun: EXPO_PUBLIC_BACKEND_URL=https://community-houston.preview.emergentagent.com pytest /app/backend/tests/test_around_you.py -v. The TestAdminAuth class is the canonical reference for the admin-auth contract; any future admin route MUST be added to require_admin and a matching 401/401/200 test added there. Database baseline at iteration end: 21 posts (all po_seed_*), 4 creators (cr_morteza, cr_houstonfoodie, cr_aroundhtx, cr_bayouwalks). Frontend admin flow still untested.",
+  "rca_of_issue": "N/A — no bug. Lifespan migration regression hypothesis (server boot, seed, public reads) verified clean; admin auth/cleanup behaves exactly as specified in the review request."
+}

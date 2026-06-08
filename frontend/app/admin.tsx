@@ -13,12 +13,16 @@ import { useRouter } from "expo-router";
 
 import { api, Creator } from "@/src/api";
 import { colors, fonts, radii, CATEGORIES } from "@/src/theme";
+import { storage } from "@/src/utils/storage";
+
+const ADMIN_KEY_STORE = "around_you_admin_key";
 
 export default function AdminScreen() {
   const router = useRouter();
   const [creators, setCreators] = useState<Creator[]>([]);
   const [mode, setMode] = useState<"post" | "creator">("post");
   const [status, setStatus] = useState<string>("");
+  const [adminKey, setAdminKey] = useState("");
 
   // post form
   const [creatorId, setCreatorId] = useState("");
@@ -39,10 +43,20 @@ export default function AdminScreen() {
       setCreators(c);
       if (c[0]) setCreatorId(c[0].creator_id);
     });
+    storage.secureGet<string>(ADMIN_KEY_STORE, "").then((k) => k && setAdminKey(k));
   }, []);
+
+  const onChangeAdminKey = (k: string) => {
+    setAdminKey(k);
+    storage.secureSet(ADMIN_KEY_STORE, k);
+  };
 
   const submitPost = async () => {
     setStatus("");
+    if (!adminKey) {
+      setStatus("Enter your admin key first.");
+      return;
+    }
     if (!creatorId || !image || !caption || !neighborhood) {
       setStatus("Please fill creator, image url, caption and neighborhood.");
       return;
@@ -51,6 +65,7 @@ export default function AdminScreen() {
       await api("/admin/posts", {
         method: "POST",
         auth: false,
+        adminKey,
         body: {
           creator_id: creatorId,
           image,
@@ -66,12 +81,16 @@ export default function AdminScreen() {
       setNeighborhood("");
       setLocationName("");
     } catch (e: any) {
-      setStatus("Failed: " + e.message);
+      setStatus(e.message?.includes("401") ? "Invalid admin key." : "Failed: " + e.message);
     }
   };
 
   const submitCreator = async () => {
     setStatus("");
+    if (!adminKey) {
+      setStatus("Enter your admin key first.");
+      return;
+    }
     if (!handle || !name || !avatar) {
       setStatus("Please fill handle, name and avatar url.");
       return;
@@ -80,6 +99,7 @@ export default function AdminScreen() {
       const c = await api<Creator>("/admin/creators", {
         method: "POST",
         auth: false,
+        adminKey,
         body: { handle, name, bio, avatar, categories: [category] },
       });
       setStatus("✓ Creator added: " + c.name);
@@ -90,7 +110,7 @@ export default function AdminScreen() {
       setBio("");
       setAvatar("");
     } catch (e: any) {
-      setStatus("Failed: " + e.message);
+      setStatus(e.message?.includes("401") ? "Invalid admin key." : "Failed: " + e.message);
     }
   };
 
@@ -122,6 +142,16 @@ export default function AdminScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+        <Label>Admin key</Label>
+        <Field
+          testID="admin-key"
+          value={adminKey}
+          onChangeText={onChangeAdminKey}
+          placeholder="Paste your admin secret"
+          secureTextEntry
+          autoCapitalize="none"
+        />
+
         {mode === "post" ? (
           <>
             <Label>Creator</Label>
