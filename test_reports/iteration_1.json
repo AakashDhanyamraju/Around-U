@@ -1,0 +1,48 @@
+{
+  "summary": "Backend testing for 'Around You' MVP complete. All 20 backend tests passed (100%) covering posts, categories, creators, admin endpoints, auth protection, and _id exclusion. Tested against public preview URL.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_around_you.py",
+    "/app/test_reports/pytest/around_you_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Admin endpoints (/api/admin/creators, /api/admin/posts) are intentionally open per MVP spec & test_credentials.md — flag for production: add auth before launch.",
+    "CORSMiddleware uses allow_origins=['*'] with allow_credentials=True — acceptable for MVP preview, but in production this combination is rejected by browsers; recommend tightening origins.",
+    "@app.on_event('startup'/'shutdown') is deprecated in newer FastAPI; consider migrating to lifespan handlers (non-blocking)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_around_you.py (new)"
+  ],
+  "success_rate": {"backend": "100% (20/20)", "frontend": "N/A (skipped per request)"},
+  "seed_data_creation": "Test created one TEST_Creator and one TEST_post via admin endpoints to verify admin flow. They remain in DB (clearly TEST_ prefixed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL: EXPO_PUBLIC_BACKEND_URL (frontend/.env). Note frontend uses EXPO_PUBLIC_BACKEND_URL key, not EXPO_BACKEND_URL. 4 seeded creators + 18 seeded posts in DB. Auth requires real Emergent Google OAuth session — only unauth paths + 401 checks tested here.",
+  "tests_covered": [
+    "GET /api/posts (no auth) — returns list with creator embedded, no _id",
+    "GET /api/posts?category=Food — filtered correctly",
+    "GET /api/posts?category=All — equals unfiltered count",
+    "GET /api/posts/{post_id} — returns post+creator+related (same category, excludes self)",
+    "GET /api/posts/{bad_id} — 404",
+    "GET /api/categories — all 8 keys present",
+    "GET /api/creators — 4+ creators incl. Morteza Safataj",
+    "GET /api/creators/cr_morteza — creator + posts",
+    "GET /api/creators/{bad} — 404",
+    "POST /api/admin/creators — creates creator (no auth, MVP)",
+    "POST /api/admin/posts — creates post linked to creator",
+    "Protected endpoints (auth/me, bookmarks GET/POST/DELETE, follows GET/POST/DELETE) all return 401 without Bearer token",
+    "Bad bearer token → 401",
+    "POST /api/auth/session with invalid session_token → 401",
+    "No MongoDB _id leaked in any response (posts, creators, embedded creator, post detail)"
+  ]
+}
