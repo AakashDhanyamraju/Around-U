@@ -1,0 +1,113 @@
+{
+  "app_name": "Around You",
+  "domain": "Local Discovery & Community Events",
+  "theme": "Light",
+  "archetype": "1 (Organic & Earthy)",
+  "emotion_and_vibe": "Warm, welcoming, editorial, high-quality, aesthetic, trust-building.",
+  "colors": {
+    "background": "#FDFCF8",
+    "surface": "#FFFFFF",
+    "surface_secondary": "#F5F2EC",
+    "primary": "#B25E46",
+    "primary_hover": "#944833",
+    "secondary": "#2C4035",
+    "accent": "#D19C4C",
+    "text_primary": "#1C1917",
+    "text_secondary": "#57534E",
+    "border": "#E7E5DF"
+  },
+  "typography": {
+    "heading_font": "Playfair Display",
+    "body_font": "Manrope",
+    "rules": {
+      "h1": "text-3xl font-serif tracking-tight text-[#1C1917] leading-tight",
+      "h2": "text-2xl font-serif tracking-tight text-[#1C1917]",
+      "h3": "text-lg font-serif text-[#1C1917]",
+      "body": "text-base font-sans text-[#57534E] leading-relaxed",
+      "caption": "text-xs font-sans text-[#57534E]",
+      "chip": "text-sm font-sans font-medium"
+    }
+  },
+  "spacing_and_layout": {
+    "app_container": "w-full max-w-md mx-auto min-h-screen bg-[#FDFCF8] relative shadow-2xl overflow-hidden flex flex-col",
+    "feed_layout": "Masonry grid with 2 columns, gap-3 or gap-4. Card heights vary based on image aspect ratio.",
+    "border_radius": {
+      "card": "rounded-2xl",
+      "chip": "rounded-full",
+      "sheet": "rounded-t-3xl",
+      "avatar": "rounded-full"
+    },
+    "shadows": {
+      "subtle": "shadow-[0_2px_10px_rgb(0,0,0,0.03)]",
+      "elevated": "shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
+    }
+  },
+  "components": {
+    "onboarding": {
+      "layout": "Full screen image background with deep gradient overlay (black/40 to black/10) to let text pop. Bottom anchored content.",
+      "button": "w-full rounded-full py-4 bg-white text-[#1C1917] font-semibold flex items-center justify-center gap-3 shadow-md"
+    },
+    "navigation": {
+      "bottom_tab": "fixed bottom-0 w-full max-w-md bg-white/90 backdrop-blur-xl border-t border-[#E7E5DF] flex justify-around items-center h-20 pb-4 pt-2 z-50",
+      "tab_icon_active": "text-[#B25E46]",
+      "tab_icon_inactive": "text-[#57534E]"
+    },
+    "category_chips": {
+      "layout": "flex overflow-x-auto gap-3 py-4 px-4 scrollbar-hide sticky top-0 bg-[#FDFCF8]/95 backdrop-blur-md z-40",
+      "chip_active": "bg-[#2C4035] text-white px-5 py-2 rounded-full",
+      "chip_inactive": "bg-[#F5F2EC] text-[#57534E] px-5 py-2 rounded-full border border-[#E7E5DF]"
+    },
+    "masonry_card": {
+      "container": "relative w-full mb-4 break-inside-avoid overflow-hidden rounded-2xl bg-white shadow-subtle group",
+      "image_overlay": "absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80",
+      "creator_avatar": "absolute bottom-3 left-3 w-8 h-8 rounded-full border-2 border-white object-cover",
+      "title": "absolute bottom-3 left-14 right-3 text-white text-sm font-medium line-clamp-2 drop-shadow-md"
+    },
+    "post_detail": {
+      "layout": "h-full overflow-y-auto pb-24",
+      "hero_image": "w-full h-[60vh] object-cover rounded-b-3xl",
+      "content_card": "px-6 py-6 -mt-8 relative bg-[#FDFCF8] rounded-t-3xl z-10",
+      "creator_row": "flex items-center justify-between mb-6",
+      "action_bar": "flex items-center gap-4 border-y border-[#E7E5DF] py-4 my-6"
+    },
+    "map_view": {
+      "layout": "absolute inset-0 z-0",
+      "custom_pin": "w-10 h-10 rounded-full border-2 border-white bg-[#B25E46] shadow-lg flex items-center justify-center overflow-hidden"
+    }
+  },
+  "interactive_rules": {
+    "hover_states": "Use scale-95 on tap for cards and buttons. Avoid harsh color shifts.",
+    "accessibility": "All text over images must have a gradient scrim or text-shadow. Minimum contrast ratio of 4.5:1.",
+    "testing": "All interactive elements MUST include data-testid attribute (e.g., data-testid='tab-home', data-testid='category-food')."
+  },
+  "media": {
+    "icons": "lucide-react (stroke-width: 1.5 for elegance)",
+    "images": {
+      "houston_skyline": [
+        "https://images.unsplash.com/photo-1622007151631-25aa98ab394b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxob3VzdG9uJTIwc2t5bGluZSUyMGRheXRpbWV8ZW58MHx8fHwxNzgwODkwMjY4fDA&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1609445333560-e03ba271b2ce?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwyfHxob3VzdG9uJTIwc2t5bGluZSUyMGRheXRpbWV8ZW58MHx8fHwxNzgwODkwMjY4fDA&ixlib=rb-4.1.0&q=85"
+      ],
+      "feed_items": [
+        "https://images.pexels.com/photos/33089291/pexels-photo-33089291.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.unsplash.com/photo-1542372147193-a7aca54189cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxhZXN0aGV0aWMlMjBjYWZlJTIwcGFzdHJ5JTIwY29mZmVlfGVufDB8fHx8MTc4MDg5MDI2OHww&ixlib=rb-4.1.0&q=85",
+        "https://images.pexels.com/photos/35508418/pexels-photo-35508418.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "https://images.unsplash.com/photo-1628745277862-bc0b2d68c50c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBob21lJTIwaW50ZXJpb3IlMjByZWFsJTIwZXN0YXRlfGVufDB8fHx8MTc4MDg5MDI2OHww&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1613545325278-f24b0cae1224?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBob21lJTIwaW50ZXJpb3IlMjByZWFsJTIwZXN0YXRlfGVufDB8fHx8MTc4MDg5MDI2OHww&ixlib=rb-4.1.0&q=85"
+      ],
+      "creator_avatars": [
+        "https://images.unsplash.com/photo-1581841064838-a470c740e8ee?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwxfHxjYW5kaWQlMjBwb3J0cmFpdCUyMGNyZWF0b3IlMjBmYXNoaW9ufGVufDB8fHx8MTc4MDg5MDQyOXww&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1617690032703-f991ed0e0ee6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwzfHxjYW5kaWQlMjBwb3J0cmFpdCUyMGNyZWF0b3IlMjBmYXNoaW9ufGVufDB8fHx8MTc4MDg5MDQyOXww&ixlib=rb-4.1.0&q=85",
+        "https://images.unsplash.com/photo-1631002724711-d1ae3cf651b0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwyfHxjYW5kaWQlMjBwb3J0cmFpdCUyMGNyZWF0b3IlMjBmYXNoaW9ufGVufDB8fHx8MTc4MDg5MDQyOXww&ixlib=rb-4.1.0&q=85"
+      ]
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build this as a mobile-first web app mimicking React Native Expo behavior (use max-w-md mx-auto min-h-screen for the main layout wrapper).",
+    "Use react-masonry-css or a CSS columns approach for the Pinterest-style feed on the Home view.",
+    "Implement the UI with Shadcn components customized with the provided colors and organic/rounded aesthetics.",
+    "Ensure the bottom navigation bar is fixed at the bottom of the container, not the viewport if it exceeds max-w-md.",
+    "Use Lucide-react for the bottom tab icons and all internal iconography.",
+    "Use the provided image URLs to populate the masonry feed, post details, and creator avatars instead of placeholders.",
+    "Add data-testid attributes to all buttons, tabs, and interactive elements for testing."
+  ]
+}
