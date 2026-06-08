@@ -113,6 +113,32 @@ class CreatorCreate(BaseModel):
     categories: List[str] = []
 
 
+class PostUpdate(BaseModel):
+    creator_id: Optional[str] = None
+    image: Optional[str] = None
+    caption: Optional[str] = None
+    category: Optional[str] = None
+    neighborhood: Optional[str] = None
+    location_name: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    media_type: Optional[str] = None
+    video_url: Optional[str] = None
+    hashtags: Optional[List[str]] = None
+    source: Optional[str] = None
+    original_url: Optional[str] = None
+    is_sponsored: Optional[bool] = None
+
+
+class CreatorUpdate(BaseModel):
+    handle: Optional[str] = None
+    name: Optional[str] = None
+    bio: Optional[str] = None
+    avatar: Optional[str] = None
+    cover: Optional[str] = None
+    categories: Optional[List[str]] = None
+
+
 # ---------- Auth helpers ----------
 async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
@@ -324,6 +350,64 @@ async def admin_add_post(p: PostCreate):
     post = Post(post_id=f"po_{uuid.uuid4().hex[:8]}", **p.dict()).dict()
     await db.posts.insert_one(post)
     return await db.posts.find_one({"post_id": post["post_id"]}, {"_id": 0})
+
+
+@api_router.patch("/admin/posts/{post_id}", dependencies=[Depends(require_admin)])
+async def admin_update_post(post_id: str, p: PostUpdate):
+    updates = {k: v for k, v in p.dict(exclude_unset=True).items()}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await db.posts.update_one({"post_id": post_id}, {"$set": updates})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return await db.posts.find_one({"post_id": post_id}, {"_id": 0})
+
+
+@api_router.patch("/admin/creators/{creator_id}", dependencies=[Depends(require_admin)])
+async def admin_update_creator(creator_id: str, c: CreatorUpdate):
+    updates = {k: v for k, v in c.dict(exclude_unset=True).items()}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await db.creators.update_one({"creator_id": creator_id}, {"$set": updates})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    return await db.creators.find_one({"creator_id": creator_id}, {"_id": 0})
+
+
+@api_router.get("/admin/stats", dependencies=[Depends(require_admin)])
+async def admin_stats():
+    total_posts = await db.posts.count_documents({})
+    total_creators = await db.creators.count_documents({})
+    video_count = await db.posts.count_documents({"media_type": "video"})
+    sponsored_count = await db.posts.count_documents({"is_sponsored": True})
+
+    by_category = await db.posts.aggregate([
+        {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]).to_list(100)
+    by_creator_raw = await db.posts.aggregate([
+        {"$group": {"_id": "$creator_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]).to_list(100)
+
+    creators = {c["creator_id"]: c for c in await db.creators.find({}, {"_id": 0}).to_list(200)}
+    by_creator = [
+        {
+            "creator_id": r["_id"],
+            "name": creators.get(r["_id"], {}).get("name", r["_id"]),
+            "count": r["count"],
+        }
+        for r in by_creator_raw
+    ]
+
+    return {
+        "total_posts": total_posts,
+        "total_creators": total_creators,
+        "video_count": video_count,
+        "sponsored_count": sponsored_count,
+        "by_category": [{"category": r["_id"], "count": r["count"]} for r in by_category],
+        "by_creator": by_creator,
+    }
 
 
 @api_router.delete("/admin/posts/{post_id}", dependencies=[Depends(require_admin)])

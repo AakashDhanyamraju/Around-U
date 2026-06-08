@@ -1,0 +1,51 @@
+{
+  "summary": "Full-stack verification of the new Admin Dashboard. Backend: created /app/backend/tests/test_admin_patch_stats.py (16 tests) covering PATCH /api/admin/posts/{id} and PATCH /api/admin/creators/{id} (401 no header / 401 wrong header / 200 correct header / 400 empty body / 404 nonexistent / 200 persist + revert with Create->GET verification), GET /api/admin/stats (401/401/200 with assertions on total_posts=21, total_creators=4, video_count=2, sponsored_count present, by_category & by_creator sum to 21, length=4), plus public regression (21 posts, 4 creators, po_seed_000 detail). Combined with the existing /app/backend/tests/test_around_you.py the full suite passes 58/58. Frontend (Expo web preview, 390x844 mobile viewport): /admin gate denies empty input with 'Enter your admin key.', wrong key with 'Invalid admin key.', and correct key unlocks the dashboard; all four tabs (tab-overview, tab-posts, tab-creators, tab-add) render; Overview shows 21 Posts / 4 Creators / 2 Videos / 0 Sponsored with by-category bar chart (Events 7, Outdoor 4, Food 3, Hidden Gems 3, Nightlife 2, Culture 1, Real Estate 1) and by-creator rows (Morteza 7, Houston Foodie 5, ...); Posts tab lists 21 rows with edit/delete icons; Creators tab lists the 4 seed creators; Add tab publish-post creates a post (count went 21->22, caption visible); Edit flow via in-session navigation to /admin/post/po_seed_004 saves the caption (verified via /api/posts/po_seed_004 that the marker persisted, then reverted via PATCH). After all tests POST /api/admin/cleanup with the correct header restored the database to exactly 21 seed posts and 4 seed creators. No deprecated expo packages were encountered in the admin screens reviewed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "DELETE /api/admin/posts/{id}", "issue": "Returns 200 with {'deleted': 0} for unknown ids instead of 404 — inconsistent with PATCH which correctly 404s. Mention in admin UI feedback (carried over from iteration_3)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "PostsList row edit/delete buttons", "issue": "Inline edit (pencil) and delete (trash) icon buttons inside each row have no testID, making them not directly tap-targetable by automated tests; we had to fall back to coordinate clicks (unreliable) and direct router navigation. Add testID like `post-row-edit-${post_id}` and `post-row-delete-${post_id}` (same for creator rows).", "testID": "MISSING", "priority": "MEDIUM"},
+      {"component": "AdminDashboard header lock button", "issue": "Header lock-out Pressable lacks a testID; expose `admin-lock` so tests/users can sign-out programmatically.", "testID": "admin-lock (missing)", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Edit post via deep-link / direct URL on web", "issue": "Navigating directly to /admin/post/{id} in a fresh browser context fails to save with 'Invalid admin key.' because expo-secure-store on web is per-context and the dashboard gate hasn't been visited yet. Works fine when unlocking in the same session first. Recommend: redirect to /admin (gate) when no key is found, OR persist the key in a web-storage tier that survives a fresh page load (e.g. localStorage). This matches the agent-to-agent note and is expected, but user-facing UX is poor.", "affected_testIDs": ["save-post"]}
+    ],
+    "design_issues": [
+      {"screen": "/admin Overview", "issues": ["Stat-card grid uses width:'47%' + flexGrow:1 which at 390px makes the two cards in a row slightly uneven; cosmetic only.", "Console warning: 'shadow*' style props are deprecated. Use 'boxShadow'. Reference: any component using the shared `shadow` token in /app/frontend/src/theme — replace with boxShadow on web."]}
+    ],
+    "react_native_issues": [
+      {"component": "shared shadow token", "issue": "Browser console reports 'shadow* style props are deprecated. Use boxShadow.' — React Native Web 0.19+ warns when using shadowColor/shadowOffset/shadowRadius. Migrate the shared `shadow` style (used in /app/frontend/app/admin/index.tsx via `...shadow`) to use the new `boxShadow` shorthand or Platform.select for web. Reference: /app/frontend/src/theme (shadow token consumer)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_patch_stats.py",
+    "/app/backend/tests/test_around_you.py",
+    "/app/test_reports/pytest/admin_patch_stats.xml",
+    "/app/test_reports/pytest/full_results.xml"
+  ],
+  "action_items": [
+    "Add testIDs to per-row admin actions: post-row-edit-{id}, post-row-delete-{id}, creator-row-edit-{id}, creator-row-delete-{id}, and admin-lock on header lock button.",
+    "Improve web UX for /admin/post/{id} and /admin/creator/{id} deep links: if getAdminKey() returns empty, redirect to /admin (gate) instead of letting the user fill the form and fail on save with 'Invalid admin key.'",
+    "Migrate the shared `shadow` theme token to `boxShadow` (or wrap with Platform.OS web variant) to silence the RN-Web deprecation warning.",
+    "Consider returning 404 from DELETE /api/admin/posts/{id} (and DELETE /api/admin/creators/{id}) when no document matched, to match PATCH semantics."
+  ],
+  "critical_code_review_comments": [
+    "admin/index.tsx is 730 lines and mixes the gate, four sub-views (Overview/PostsList/CreatorsList/AddForms) and two helper components — close to the 700-line guideline. Split AddForms and the two list views into separate files under app/admin/_components/ before adding more.",
+    "AddForms keeps `category` state that is shared between New-post and New-creator modes — intentional but subtle. A small comment would prevent regressions.",
+    "isAuthError treats both 401 and 503 as 'invalid key', which is correct for the current require_admin (503 = key unset on server). Keep.",
+    "Edit screen /admin/post/[id].tsx only reads adminKey on mount (`getAdminKey()`); if a user opens the gate in another tab and the key changes, this screen will keep using the stale key. Low risk for single-session usage but worth a re-fetch on focus."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_patch_stats.py (new — 16 pytest tests for PATCH posts, PATCH creators, GET stats, plus public baseline)"
+  ],
+  "success_rate": {"backend": "100% (58/58, incl. 16 new in test_admin_patch_stats.py)", "frontend": "100% of critical admin-dashboard flows verified (gate empty/wrong/correct, 4 tabs, overview stats render, posts list count + edit/delete icons render, publish creates+appears, edit-via-in-app-nav saves+persists, baseline restored via cleanup)"},
+  "seed_data_creation": "During this run a transient post (TEST_FRONTEND_POST e2e check) was created via the Add tab and po_seed_004's caption was temporarily appended with ' [TEST_EDIT_MARK]'. After tests, the caption was PATCH-reverted and POST /api/admin/cleanup removed the test post. Final verified baseline: 21 posts / 4 creators (cr_morteza, cr_houstonfoodie, cr_aroundhtx, cr_bayouwalks).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend admin contract is locked in by /app/backend/tests/test_admin_patch_stats.py (PATCH posts/creators, GET stats) and /app/backend/tests/test_around_you.py (POST/DELETE admin, cleanup, seed baseline). Run: EXPO_PUBLIC_BACKEND_URL=https://community-houston.preview.emergentagent.com pytest backend/tests/ -v (58/58 expected). Admin key still '2CqEcj2JlHDJqqEvfK4RywE2I_aaETN_' via X-Admin-Secret. KNOWN UX QUIRK on web preview: /admin/post/{id} and /admin/creator/{id} deep links fail to save when opened in a fresh browser context because expo-secure-store doesn't survive cross-context navigation — always unlock /admin first in the same session. After any create/edit tests, POST /api/admin/cleanup with the header to restore the 21/4 baseline (the tests in this iteration already did this). The shadow→boxShadow RN-Web warning is harmless but visible in console.",
+  "rca_of_issue": "N/A — no functional bug. The 'Invalid admin key.' seen on /admin/post/po_seed_004 in a fresh playwright context was reproducer-induced, not a product bug: getAdminKey() returned empty because the SecureStore web shim is scoped to the browser context, and we hadn't visited the gate in that context. Re-running in a single session (gate -> unlock -> goto /admin/post/{id}) succeeds (verified: '✓ Saved.' status, caption persists in /api/posts/po_seed_004)."
+}
