@@ -217,7 +217,7 @@ export default function AdminDashboard() {
         title="Admin Dashboard"
         onBack={() => router.back()}
         right={
-          <Pressable onPress={lock} hitSlop={10} style={styles.lockBtn}>
+          <Pressable testID="admin-lock" onPress={lock} hitSlop={10} style={styles.lockBtn}>
             <Ionicons name="lock-open-outline" size={20} color={colors.primaryDeep} />
           </Pressable>
         }
@@ -375,10 +375,10 @@ function PostsList({
             </View>
           </View>
           <View style={styles.rowActions}>
-            <Pressable onPress={() => onEdit(p)} hitSlop={8} style={styles.iconBtn}>
+            <Pressable testID={`post-row-edit-${p.post_id}`} onPress={() => onEdit(p)} hitSlop={8} style={styles.iconBtn}>
               <Ionicons name="create-outline" size={20} color={colors.primaryDeep} />
             </Pressable>
-            <Pressable onPress={() => onDelete(p)} hitSlop={8} style={styles.iconBtn}>
+            <Pressable testID={`post-row-delete-${p.post_id}`} onPress={() => onDelete(p)} hitSlop={8} style={styles.iconBtn}>
               <Ionicons name="trash-outline" size={19} color="#D14E22" />
             </Pressable>
           </View>
@@ -413,10 +413,10 @@ function CreatorsList({
             <Text style={[styles.rowMetaText, { marginTop: 2 }]}>{countFor(c.creator_id)} posts</Text>
           </View>
           <View style={styles.rowActions}>
-            <Pressable onPress={() => onEdit(c)} hitSlop={8} style={styles.iconBtn}>
+            <Pressable testID={`creator-row-edit-${c.creator_id}`} onPress={() => onEdit(c)} hitSlop={8} style={styles.iconBtn}>
               <Ionicons name="create-outline" size={20} color={colors.primaryDeep} />
             </Pressable>
-            <Pressable onPress={() => onDelete(c)} hitSlop={8} style={styles.iconBtn}>
+            <Pressable testID={`creator-row-delete-${c.creator_id}`} onPress={() => onDelete(c)} hitSlop={8} style={styles.iconBtn}>
               <Ionicons name="trash-outline" size={19} color="#D14E22" />
             </Pressable>
           </View>

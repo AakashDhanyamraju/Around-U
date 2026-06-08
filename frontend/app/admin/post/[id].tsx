@@ -41,6 +41,10 @@ export default function EditPost() {
   useEffect(() => {
     (async () => {
       const k = (await getAdminKey()) || "";
+      if (!k) {
+        router.replace("/admin");
+        return;
+      }
       setKey(k);
       try {
         const [{ post }, cs] = await Promise.all([adminGetPost(id), adminListCreators()]);
@@ -55,7 +59,7 @@ export default function EditPost() {
         setVideoUrl(post.video_url || "");
         setHashtags((post.hashtags || []).join(", "));
         setSponsored(!!post.is_sponsored);
-      } catch (e: any) {
+      } catch {
         setStatus("Couldn't load post.");
       }
       setLoading(false);

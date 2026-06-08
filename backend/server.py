@@ -413,12 +413,16 @@ async def admin_stats():
 @api_router.delete("/admin/posts/{post_id}", dependencies=[Depends(require_admin)])
 async def admin_delete_post(post_id: str):
     res = await db.posts.delete_one({"post_id": post_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Post not found")
     return {"deleted": res.deleted_count}
 
 
 @api_router.delete("/admin/creators/{creator_id}", dependencies=[Depends(require_admin)])
 async def admin_delete_creator(creator_id: str):
     res = await db.creators.delete_one({"creator_id": creator_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Creator not found")
     # also remove that creator's posts to avoid orphans
     posts_res = await db.posts.delete_many({"creator_id": creator_id})
     return {"deleted_creator": res.deleted_count, "deleted_posts": posts_res.deleted_count}

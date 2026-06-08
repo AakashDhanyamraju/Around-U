@@ -33,6 +33,10 @@ export default function EditCreator() {
   useEffect(() => {
     (async () => {
       const k = (await getAdminKey()) || "";
+      if (!k) {
+        router.replace("/admin");
+        return;
+      }
       setKey(k);
       try {
         const { creator } = await adminGetCreator(id);
