@@ -90,6 +90,20 @@ export default function PostDetail() {
 
           <Text style={styles.caption}>{post.caption}</Text>
 
+          {post.category === "Events" ? (
+            <View style={styles.interestRow}>
+              <View style={styles.interestAvatars}>
+                <Image source={{ uri: "https://i.pravatar.cc/40?img=12" }} style={[styles.iAvatar, { marginLeft: 0 }]} />
+                <Image source={{ uri: "https://i.pravatar.cc/40?img=32" }} style={styles.iAvatar} />
+                <Image source={{ uri: "https://i.pravatar.cc/40?img=45" }} style={styles.iAvatar} />
+              </View>
+              <Text style={styles.interestText}>+{120 + (post.likes % 200)} neighbors interested</Text>
+              <Pressable testID="interested-btn" style={styles.interestBtn}>
+                <Text style={styles.interestBtnText}>I'm in</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {post.location_name ? (
             <View style={styles.locationCard}>
               <Ionicons name="pin" size={16} color={colors.primary} />
@@ -175,6 +189,16 @@ const styles = StyleSheet.create({
   },
   metaChipText: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.textSecondary, letterSpacing: 0.5 },
   caption: { fontFamily: fonts.display, fontSize: 22, color: colors.textPrimary, lineHeight: 32 },
+  interestRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radii.lg, padding: 10, marginTop: 18,
+  },
+  interestAvatars: { flexDirection: "row" },
+  iAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: "#fff", marginLeft: -10 },
+  interestText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 12, color: colors.textPrimary },
+  interestBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.primary },
+  interestBtnText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 12 },
   locationCard: {
     flexDirection: "row",
     alignItems: "center",
