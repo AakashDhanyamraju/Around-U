@@ -36,6 +36,12 @@ export function MasonryCard({ post, height, index }: Props) {
             <Text style={styles.dateMon}>{new Date(post.created_at).toLocaleString("en", { month: "short" }).toUpperCase()}</Text>
           </View>
         )}
+        {(post as any).is_sponsored && (
+          <View style={styles.sponsorChip}>
+            <Ionicons name="megaphone" size={9} color="#fff" />
+            <Text style={styles.sponsorText}>Sponsored</Text>
+          </View>
+        )}
         <Pressable
           testID={`bookmark-${post.post_id}`}
           onPress={(e) => {
@@ -102,6 +108,13 @@ const styles = StyleSheet.create({
   },
   dateDay: { color: "#fff", fontFamily: fonts.displayXL, fontSize: 14, lineHeight: 15, letterSpacing: -0.3 },
   dateMon: { color: "rgba(255,255,255,0.92)", fontFamily: fonts.bodyBold, fontSize: 8, letterSpacing: 1, marginTop: 1 },
+  sponsorChip: {
+    position: "absolute", top: 10, left: 10,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(28,25,23,0.78)",
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999,
+  },
+  sponsorText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 9, letterSpacing: 0.5 },
   saveBtn: {
     position: "absolute", top: 10, right: 10, width: 32, height: 32, borderRadius: 16,
     backgroundColor: "rgba(0,0,0,0.42)", alignItems: "center", justifyContent: "center",
