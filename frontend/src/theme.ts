@@ -1,22 +1,21 @@
-// Theme constants — "around you" — warm gradient identity
+// "around you" — warm, peach/coral editorial theme inspired by community discovery apps
 export const colors = {
-  background: "#FFF8F2",
+  background: "#FFF4EB",     // soft peach/cream
+  backgroundAlt: "#FFE8D6",
   surface: "#FFFFFF",
-  surfaceAlt: "#FFEDE0",
-  primary: "#F26B3A", // warm orange
-  pink: "#E64C8B",
-  purple: "#7C3AED",
-  accent: "#FFB85C",
-  textPrimary: "#1A1320",
-  textSecondary: "#5B5365",
-  textMuted: "#8E8696",
-  border: "#F1E4D6",
-  overlay: "rgba(26,19,32,0.55)",
+  surfaceAlt: "#FFF1E2",
+  primary: "#F26B3A",        // coral
+  primarySoft: "#FFB085",
+  primaryDeep: "#D14E22",
+  accent: "#FF8E5C",
+  textPrimary: "#1F1A17",
+  textSecondary: "#6B5F57",
+  textMuted: "#A39888",
+  border: "#F4E2CE",
+  blob: "#FFD3B0",
+  blobSoft: "#FFE2C9",
+  success: "#3AAE6F",
 };
-
-// Warm gradient: orange → pink → purple
-export const warmGradient = ["#F26B3A", "#E64C8B", "#7C3AED"] as const;
-export const warmGradientSoft = ["#FFB85C", "#F26B3A", "#E64C8B"] as const;
 
 export const radii = {
   sm: 12,
@@ -29,7 +28,7 @@ export const radii = {
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 
 export const fonts = {
-  display: "BricolageGrotesque_700Bold", // Clash Display substitute
+  display: "BricolageGrotesque_700Bold",
   displayXL: "BricolageGrotesque_800ExtraBold",
   body: "Inter_400Regular",
   bodyMed: "Inter_500Medium",
@@ -47,3 +46,11 @@ export const CATEGORIES = [
   "Outdoor",
   "Culture",
 ];
+
+export const shadow = {
+  shadowColor: "#7A4A26",
+  shadowOpacity: 0.08,
+  shadowRadius: 18,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 5,
+};
