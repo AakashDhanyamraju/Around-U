@@ -101,6 +101,11 @@ export default function DiscoverScreen() {
                     style={({ pressed }) => [styles.featuredCard, pressed && { transform: [{ scale: 0.99 }] }]}
                   >
                     <Image source={{ uri: featured.image }} style={styles.featuredImage} contentFit="cover" />
+                    {/* Droplet-style date tab (inspired by community event cards) */}
+                    <View style={styles.dateDroplet}>
+                      <Text style={styles.dateDay}>{new Date(featured.created_at).getDate()}</Text>
+                      <Text style={styles.dateMon}>{new Date(featured.created_at).toLocaleString("en", { month: "short" }).toUpperCase()}</Text>
+                    </View>
                     <View style={styles.featuredTopRow}>
                       <View style={styles.featuredChipRow}>
                         <View style={styles.featuredStar}>
@@ -194,6 +199,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt, ...shadow,
   },
   featuredImage: { ...StyleSheet.absoluteFillObject },
+  dateDroplet: {
+    position: "absolute", top: 20, left: 0,
+    backgroundColor: colors.primary,
+    paddingVertical: 8, paddingHorizontal: 12,
+    borderTopRightRadius: 14, borderBottomRightRadius: 14,
+    borderTopLeftRadius: 4, borderBottomLeftRadius: 4,
+    alignItems: "center", minWidth: 48,
+    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 2, height: 4 }, elevation: 6,
+  },
+  dateDay: { color: "#fff", fontFamily: fonts.displayXL, fontSize: 18, lineHeight: 20, letterSpacing: -0.5 },
+  dateMon: { color: "rgba(255,255,255,0.9)", fontFamily: fonts.bodyBold, fontSize: 9, letterSpacing: 1.2, marginTop: 1 },
   featuredTopRow: { position: "absolute", top: 14, left: 14, right: 14, flexDirection: "row", justifyContent: "space-between" },
   featuredChipRow: { flexDirection: "row", gap: 6 },
   featuredStar: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radii.pill },
