@@ -9,6 +9,7 @@ import Animated, { FadeInUp } from "react-native-reanimated";
 import { Post } from "@/src/api";
 import { colors, radii, fonts } from "@/src/theme";
 import { useSocial } from "@/src/social";
+import { MediaTile } from "@/src/components/MediaTile";
 
 type Props = { post: Post; height: number; index: number };
 
@@ -16,6 +17,7 @@ export function MasonryCard({ post, height, index }: Props) {
   const router = useRouter();
   const { bookmarkIds, toggleBookmark } = useSocial();
   const saved = bookmarkIds.has(post.post_id);
+  const isVideo = post.media_type === "video" && !!post.video_url;
 
   return (
     <Animated.View entering={FadeInUp.delay(index * 40).duration(420)}>
@@ -24,12 +26,17 @@ export function MasonryCard({ post, height, index }: Props) {
         onPress={() => router.push(`/post/${post.post_id}`)}
         style={({ pressed }) => [styles.card, { height }, pressed && { transform: [{ scale: 0.97 }] }]}
       >
-        <Image source={{ uri: post.image }} style={styles.image} contentFit="cover" transition={250} />
+        <MediaTile post={post} contentFit="cover" />
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.05)", "rgba(0,0,0,0.78)"]}
           locations={[0, 0.45, 1]}
           style={StyleSheet.absoluteFill}
         />
+        {isVideo && (
+          <View style={styles.videoBadge}>
+            <Ionicons name="play" size={9} color="#fff" />
+          </View>
+        )}
         {post.category === "Events" && (
           <View style={styles.dateDroplet}>
             <Text style={styles.dateDay}>{new Date(post.created_at).getDate()}</Text>
@@ -115,6 +122,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999,
   },
   sponsorText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 9, letterSpacing: 0.5 },
+  videoBadge: {
+    position: "absolute", top: 10, left: 10, width: 22, height: 22, borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center",
+    paddingLeft: 2,
+  },
   saveBtn: {
     position: "absolute", top: 10, right: 10, width: 32, height: 32, borderRadius: 16,
     backgroundColor: "rgba(0,0,0,0.42)", alignItems: "center", justifyContent: "center",

@@ -3,7 +3,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://nearby-drops-1.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://community-houston.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 
@@ -168,3 +168,93 @@ class TestRoot:
         r = s.get(f"{API}/", timeout=20)
         assert r.status_code == 200
         assert "message" in r.json()
+
+
+
+# ---------- Seed v3: Morteza Instagram ingest + video support ----------
+class TestSeedV3Ingest:
+    """Verify the seed v3 migration: 21 posts, 2 videos, new fields present."""
+
+    def test_total_posts_is_21(self, s):
+        # Ignore admin-created TEST_* posts that may have been added by other tests.
+        r = s.get(f"{API}/posts", params={"limit": 200}, timeout=20)
+        assert r.status_code == 200
+        data = [p for p in r.json() if p["post_id"].startswith("po_seed_")]
+        assert len(data) == 21, f"expected 21 seed posts, got {len(data)}"
+
+    def test_post_has_new_fields(self, s):
+        r = s.get(f"{API}/posts", params={"limit": 200}, timeout=20)
+        assert r.status_code == 200
+        data = r.json()
+        required = ("media_type", "hashtags", "is_sponsored", "video_url", "source", "original_url")
+        for p in data:
+            for k in required:
+                assert k in p, f"post {p.get('post_id')} missing field {k}"
+            # Type checks on new fields
+            assert isinstance(p["media_type"], str)
+            assert p["media_type"] in ("image", "video")
+            assert isinstance(p["hashtags"], list)
+            assert isinstance(p["is_sponsored"], bool)
+
+    def test_exactly_two_video_posts(self, s):
+        r = s.get(f"{API}/posts", params={"limit": 200}, timeout=20)
+        assert r.status_code == 200
+        data = r.json()
+        videos = [p for p in data if p.get("media_type") == "video"]
+        assert len(videos) == 2, f"expected 2 video posts, got {len(videos)}"
+        for v in videos:
+            assert v.get("video_url"), f"{v['post_id']} has empty video_url"
+        video_ids = sorted(v["post_id"] for v in videos)
+        assert video_ids == ["po_seed_000", "po_seed_003"], (
+            f"expected video posts po_seed_000 & po_seed_003, got {video_ids}"
+        )
+
+    def test_po_seed_000_world_cup_detail(self, s):
+        r = s.get(f"{API}/posts/po_seed_000", timeout=20)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        post = data["post"]
+        assert post["post_id"] == "po_seed_000"
+        assert post["media_type"] == "video"
+        assert post["video_url"], "video_url should be non-empty"
+        assert post["creator_id"] == "cr_morteza"
+        # Caption is the World Cup listicle
+        cap = post["caption"]
+        assert "FIFA Fan Festival" in cap
+        assert "Houston" in cap
+        # Hashtags non-empty and contains WorldCup2026
+        assert isinstance(post["hashtags"], list) and len(post["hashtags"]) > 0
+        assert "WorldCup2026" in post["hashtags"]
+        # Creator block hydrated
+        assert data["creator"]["creator_id"] == "cr_morteza"
+        # Related list
+        assert isinstance(data["related"], list)
+        assert all(rp["post_id"] != "po_seed_000" for rp in data["related"])
+
+    def test_creators_count_is_4_and_includes_morteza(self, s):
+        # Ignore admin-created TEST_* creators that may have been added by other tests.
+        r = s.get(f"{API}/creators", timeout=20)
+        assert r.status_code == 200
+        creators = [c for c in r.json() if not c.get("name", "").startswith("TEST_")]
+        assert len(creators) == 4, f"expected 4 seed creators, got {len(creators)}"
+        ids = [c["creator_id"] for c in creators]
+        assert "cr_morteza" in ids
+
+    def test_events_category_filter_has_new_fields(self, s):
+        r = s.get(f"{API}/posts", params={"category": "Events"}, timeout=20)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) > 0
+        assert all(p["category"] == "Events" for p in data)
+        for p in data:
+            for k in ("media_type", "hashtags", "is_sponsored", "video_url", "source", "original_url"):
+                assert k in p, f"events post {p.get('post_id')} missing {k}"
+
+    def test_category_all_equals_no_filter(self, s):
+        r_all = s.get(f"{API}/posts", params={"category": "All", "limit": 200}, timeout=20)
+        r_none = s.get(f"{API}/posts", params={"limit": 200}, timeout=20)
+        assert r_all.status_code == 200 and r_none.status_code == 200
+        a = [p for p in r_all.json() if p["post_id"].startswith("po_seed_")]
+        n = [p for p in r_none.json() if p["post_id"].startswith("po_seed_")]
+        assert len(a) == len(n) == 21
+        assert sorted(p["post_id"] for p in a) == sorted(p["post_id"] for p in n)

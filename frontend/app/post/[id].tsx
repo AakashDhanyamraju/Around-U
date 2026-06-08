@@ -18,6 +18,7 @@ import { api, Creator, Post } from "@/src/api";
 import { colors, fonts, radii } from "@/src/theme";
 import { useSocial } from "@/src/social";
 import { MasonryGrid } from "@/src/components/MasonryGrid";
+import { MediaTile } from "@/src/components/MediaTile";
 
 const HERO_H = Math.round(Dimensions.get("window").height * 0.55);
 
@@ -57,7 +58,7 @@ export default function PostDetail() {
     <View style={styles.root}>
       <ScrollView showsVerticalScrollIndicator={false} testID="post-scroll">
         <View style={{ height: HERO_H }}>
-          <Image source={{ uri: post.image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <MediaTile post={post} contentFit="cover" showMute autoPlay />
           <LinearGradient
             colors={["rgba(0,0,0,0.45)", "transparent", "rgba(28,25,23,0.0)"]}
             locations={[0, 0.3, 1]}
@@ -90,6 +91,16 @@ export default function PostDetail() {
 
           <Text style={styles.caption}>{post.caption}</Text>
 
+          {post.hashtags && post.hashtags.length > 0 ? (
+            <View style={styles.tagsRow}>
+              {post.hashtags.map((t) => (
+                <View key={t} style={styles.tagChip}>
+                  <Text style={styles.tagText}>#{t}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {post.category === "Events" ? (
             <View style={styles.interestRow}>
               <View style={styles.interestAvatars}>
@@ -99,7 +110,7 @@ export default function PostDetail() {
               </View>
               <Text style={styles.interestText}>+{120 + (post.likes % 200)} neighbors interested</Text>
               <Pressable testID="interested-btn" style={styles.interestBtn}>
-                <Text style={styles.interestBtnText}>I'm in</Text>
+                <Text style={styles.interestBtnText}>I&apos;m in</Text>
               </Pressable>
             </View>
           ) : null}
@@ -189,6 +200,9 @@ const styles = StyleSheet.create({
   },
   metaChipText: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.textSecondary, letterSpacing: 0.5 },
   caption: { fontFamily: fonts.display, fontSize: 22, color: colors.textPrimary, lineHeight: 32 },
+  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
+  tagChip: { backgroundColor: colors.surfaceAlt, borderRadius: radii.pill, paddingHorizontal: 11, paddingVertical: 5 },
+  tagText: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.primaryDeep },
   interestRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,

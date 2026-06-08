@@ -59,6 +59,12 @@ export type Post = {
   lat?: number;
   lng?: number;
   likes: number;
+  media_type?: "image" | "video";
+  video_url?: string;
+  hashtags?: string[];
+  source?: string;
+  original_url?: string;
+  is_sponsored?: boolean;
   created_at: string;
   creator?: Creator;
 };

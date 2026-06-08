@@ -64,6 +64,12 @@ class Post(BaseModel):
     lat: Optional[float] = None
     lng: Optional[float] = None
     likes: int = 0
+    media_type: str = "image"  # "image" | "video"
+    video_url: Optional[str] = None
+    hashtags: List[str] = []
+    source: Optional[str] = None  # e.g. "Instagram"
+    original_url: Optional[str] = None
+    is_sponsored: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -76,6 +82,12 @@ class PostCreate(BaseModel):
     location_name: Optional[str] = None
     lat: Optional[float] = None
     lng: Optional[float] = None
+    media_type: str = "image"
+    video_url: Optional[str] = None
+    hashtags: List[str] = []
+    source: Optional[str] = None
+    original_url: Optional[str] = None
+    is_sponsored: bool = False
 
 
 class CreatorCreate(BaseModel):
@@ -340,69 +352,154 @@ SEED_CREATORS = [
 ]
 
 
+# Stable, reliable sample videos (autoplay-friendly mp4 streams).
+# IG source URLs expire, so we pair real captions with stable media.
+SAMPLE_VIDEO_WORLDCUP = "https://media.w3.org/2010/05/sintel/trailer.mp4"
+SAMPLE_VIDEO_MOTORCADE = "https://media.w3.org/2010/05/bunny/movie.mp4"
+
+# Real Morteza Safataj captions ingested from the Instagram scrape (media swapped
+# to stable Unsplash/sample-video URLs because the original IG URLs expire).
 SEED_POSTS = [
-    # Morteza
-    ("cr_morteza", "https://images.unsplash.com/photo-1628745277862-bc0b2d68c50c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBob21lJTIwaW50ZXJpb3IlMjByZWFsJTIwZXN0YXRlfGVufDB8fHx8MTc4MDg5MDI2OHww&ixlib=rb-4.1.0&q=85",
-     "A quiet $1.4M new build just listed off West University. Tucked behind an oak canopy, with a chef kitchen and a back garden made for slow Sundays.",
-     "Real Estate", "West University", "West University Place", 29.7180, -95.4319),
-    ("cr_morteza", "https://images.unsplash.com/photo-1613545325278-f24b0cae1224?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBob21lJTIwaW50ZXJpb3IlMjByZWFsJTIwZXN0YXRlfGVufDB8fHx8MTc4MDg5MDI2OHww&ixlib=rb-4.1.0&q=85",
-     "Heights bungalow restoration — original 1923 floors, brand new soul. Open house Sunday 2-4pm if you want to feel it.",
-     "Real Estate", "The Heights", "Heights Boulevard", 29.7977, -95.3984),
-    ("cr_morteza", "https://images.unsplash.com/photo-1622007151631-25aa98ab394b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxob3VzdG9uJTIwc2t5bGluZSUyMGRheXRpbWV8ZW58MHx8fHwxNzgwODkwMjY4fDA&ixlib=rb-4.1.0&q=85",
-     "Why Midtown is quietly becoming Houston's best long-term bet — three new mixed-use projects breaking ground this quarter.",
-     "Real Estate", "Midtown", "Midtown Houston", 29.7383, -95.3768),
-    ("cr_morteza", "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&q=80",
-     "Found a 1950s ranch in Bellaire with the original terrazzo floors still intact. The owner's grandkids learned to walk on them.",
-     "Hidden Gems", "Bellaire", "Bellaire", 29.7058, -95.4588),
+    # ---------- Morteza Safataj (real captions) ----------
+    {
+        "creator_id": "cr_morteza",
+        "image": "https://images.unsplash.com/photo-1551958219-acbc608c6377?w=900&q=80",
+        "caption": "Houston is hosting 7 matches and you don't need a ticket to experience it. Here's where to be.\n\n\U0001F3DF\uFE0F FIFA Fan Festival — Free. 34 days. No excuse.\n\U0001F3AA The Ranch Presents Pitch Live\n\U0001F4FA Tom's Watch Bar\n\u26BD Pitch 25\n\U0001F37A Social Beer Garden\n\U0001F33F Little Woodrow's\n\U0001F981 Velvet Oak Tavern\n\u2615 Toros HTX\n\nNo ticket? No problem. Send this to someone who needs a plan.\n\n— Morteza | Houston Realtor & Storyteller",
+        "category": "Events",
+        "neighborhood": "EaDo",
+        "location_name": "FIFA Fan Festival",
+        "lat": 29.7494, "lng": -95.3502,
+        "media_type": "video",
+        "video_url": SAMPLE_VIDEO_WORLDCUP,
+        "hashtags": ["WorldCup2026", "Houston", "HoustonWorldCup", "FIFA2026", "HoustonSoccer"],
+        "source": "Instagram",
+        "original_url": "https://www.instagram.com/p/DZIKhogxLhG/",
+    },
+    {
+        "creator_id": "cr_morteza",
+        "image": "https://images.unsplash.com/photo-1622007151631-25aa98ab394b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwxfHxob3VzdG9uJTIwc2t5bGluZSUyMGRheXRpbWV8ZW58MHx8fHwxNzgwODkwMjY4fDA&ixlib=rb-4.1.0&q=85",
+        "caption": "Houston is being rebuilt in real time — and most people have no idea. \U0001F440\n\n\u2192 The I-45 Rebuild — $13B, largest road project in Texas history\n\u2192 TMC Helix Park — $1.8B expansion of the world's largest medical center\n\u2192 Central Park at Post Oak — 150K+ sq ft on Houston's most elite corridor\n\u2192 George R. Brown Expansion — $2.3B, largest ballroom in Texas\n\u2192 Houston Ship Channel Project 11 — biggest upgrade in 100 years\n\u2192 Toro District — 83 acres, Texans HQ, $34B economic impact\n\u2192 The RO River Oaks — Houston's first Auberge hotel\n\nSave this. Which one are you going to first? \U0001F920",
+        "category": "Real Estate",
+        "neighborhood": "Citywide",
+        "location_name": "Houston",
+        "lat": 29.7604, "lng": -95.3698,
+        "hashtags": ["HoustonRealEstate", "HoustonLife", "MoveToHouston", "HoustonDevelopment"],
+        "source": "Instagram",
+        "original_url": "https://www.instagram.com/p/DXzfiUcxPWZ/",
+    },
+    {
+        "creator_id": "cr_morteza",
+        "image": "https://images.unsplash.com/photo-1459865264687-595d652de67e?w=900&q=80",
+        "caption": "Houston is hosting the world's biggest soccer party — and it's completely free. The official FIFA Fan Festival is taking over EaDo for 34 days.\n\n\U0001F4CD 2301 Dallas St., East Downtown\n\U0001F4C5 June 11 – July 19 · 34 Match Days\n\u26BD Every match live on giant outdoor LED screens\n\U0001F3B5 Tejano and hip-hop on the main stage\n\U0001F356 Texas BBQ, Tex-Mex, Vietnamese pho and more\n\U0001F680 NASA Space City Zone · Kids Zone\n\U0001F39F Free entry · Legends Loft VIP available\n\nSave this and send it to your Houston crew. \u26BD",
+        "category": "Events",
+        "neighborhood": "East Downtown",
+        "location_name": "FIFA Fan Festival · 2301 Dallas St",
+        "lat": 29.7515, "lng": -95.3500,
+        "hashtags": ["WorldCup2026", "Houston", "HoustonWorldCup", "FIFA2026", "HoustonSoccer"],
+        "source": "Instagram",
+        "original_url": "https://www.instagram.com/p/DYKmARBkW3g/",
+    },
+    {
+        "creator_id": "cr_morteza",
+        "image": "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&q=80",
+        "caption": "200 rides. One city. One story.\n\nHouston's car cultures are uniting this Sunday — supercars, lowriders, motorcycles, slingshots, classics and more — all in memory of Killian and in honor of every child who has fought pediatric cancer. \U0001F49B\n\nProudly supporting @dreamrydes \U0001F91D\n\nComment \u201CMOTORCADE\u201D and I'll send you everything you need to be there.",
+        "category": "Events",
+        "neighborhood": "Citywide",
+        "location_name": "Houston Charity Motorcade",
+        "lat": 29.7604, "lng": -95.3698,
+        "media_type": "video",
+        "video_url": SAMPLE_VIDEO_MOTORCADE,
+        "hashtags": ["Motorcade", "Houston", "DreamRydes"],
+        "source": "Instagram",
+        "original_url": "https://www.instagram.com/p/DZJEONzRxTl/",
+    },
+    {
+        "creator_id": "cr_morteza",
+        "image": "https://images.unsplash.com/photo-1505228395891-9a51e7e86bf6?w=900&q=80",
+        "caption": "\U0001F30A Blue Lagoon in Huntsville TX is carved from two old limestone quarries — and the water is so vivid and clear it looks like something out of the Bahamas. Swimming, snorkeling, scuba — just an hour north of Houston. This one's going on the summer list.\n\n— Morteza | Houston Realtor & Storyteller",
+        "category": "Outdoor",
+        "neighborhood": "Huntsville, TX",
+        "location_name": "Blue Lagoon Huntsville",
+        "lat": 30.6630, "lng": -95.5688,
+        "hashtags": ["Houston", "ThingsToDo", "BlueLagoon"],
+        "source": "Instagram",
+        "original_url": "https://www.instagram.com/p/DZP77erx3Wc/",
+    },
+    {
+        "creator_id": "cr_morteza",
+        "image": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=900&q=80",
+        "caption": "Houston is packed this weekend — Pride, supercars rolling through POST Houston, a free movie night at Discovery Green, live music on the bayou and more. Here's where to be June 5–7.\n\n\U0001F3F3\uFE0F\u200D\U0001F308 Pride Houston — Sat · City Hall · 11 AM–10 PM\n\U0001F697 Gumball 3000 — Sun · POST Houston · Free\n\U0001F3AC Screen on the Green — Fri · Discovery Green · Free\n\U0001F3B6 R&B Lovers Tour — Sat · Toyota Center · 8 PM\n\U0001F30A Beats on the Bayou — Fri · East River · Free\n\nSave this and send it to your Houston crew. \U0001F4F2",
+        "category": "Events",
+        "neighborhood": "Downtown",
+        "location_name": "Around Houston · June 5–7",
+        "lat": 29.7589, "lng": -95.3677,
+        "hashtags": ["HoustonThingsToDo", "HoustonEvents", "HTown"],
+        "source": "Instagram",
+        "original_url": "https://www.instagram.com/p/DZK51HeORbm/",
+    },
+    {
+        "creator_id": "cr_morteza",
+        "image": "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=900&q=80",
+        "caption": "Houston has 8 spots that will make you feel like you've been living in the wrong neighborhood this whole time — hidden, historic, and mostly free. This city has been holding out on you.\n\nSave this for your next free weekend. Which one are you going to first? \U0001F447",
+        "category": "Hidden Gems",
+        "neighborhood": "Citywide",
+        "location_name": "Houston Hidden Gems",
+        "lat": 29.7604, "lng": -95.3698,
+        "hashtags": ["HoustonThingsToDo", "HoustonLife", "HoustonLocal", "VisitHouston", "HTown"],
+        "source": "Instagram",
+        "original_url": "https://www.instagram.com/p/DXzfiUcxPWZ/",
+    },
 
-    # Houston Foodie
-    ("cr_houstonfoodie", "https://images.unsplash.com/photo-1542372147193-a7aca54189cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxhZXN0aGV0aWMlMjBjYWZlJTIwcGFzdHJ5JTIwY29mZmVlfGVufDB8fHx8MTc4MDg5MDI2OHww&ixlib=rb-4.1.0&q=85",
-     "Tout Suite's almond croissant is the most underrated pastry in EaDo. Get there before 10am or weep.",
-     "Food", "EaDo", "Tout Suite", 29.7505, -95.3491),
-    ("cr_houstonfoodie", "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80",
-     "A 12-table Sichuan spot in Chinatown opened last Tuesday. The mapo tofu numbed my lips for an hour. Worth it.",
-     "Food", "Chinatown", "Mala House", 29.7028, -95.5832),
-    ("cr_houstonfoodie", "https://images.pexels.com/photos/35508418/pexels-photo-35508418.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-     "The taco truck behind the laundromat on Wayside. No sign. Cash only. Best al pastor in the city — fight me.",
-     "Hidden Gems", "East End", "Tacos La Esquina", 29.7510, -95.3260),
-    ("cr_houstonfoodie", "https://images.unsplash.com/photo-1559054663-e8d23213f55c?w=800&q=80",
-     "New natural wine bar in Montrose — Italian small plates, low lighting, no pretension. They poured me a Frappato I'm still thinking about.",
-     "Nightlife", "Montrose", "Vinea", 29.7430, -95.3905),
-    ("cr_houstonfoodie", "https://images.unsplash.com/photo-1481833761820-0509d3217039?w=800&q=80",
-     "Saturday farmer's market at Rice Village. Get there at 8 for the kolaches before they vanish.",
-     "Food", "Rice Village", "Rice Village Farmer's Market", 29.7174, -95.4180),
+    # ---------- Houston Foodie ----------
+    {"creator_id": "cr_houstonfoodie", "image": "https://images.unsplash.com/photo-1542372147193-a7aca54189cd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwxfHxhZXN0aGV0aWMlMjBjYWZlJTIwcGFzdHJ5JTIwY29mZmVlfGVufDB8fHx8MTc4MDg5MDI2OHww&ixlib=rb-4.1.0&q=85",
+     "caption": "Tout Suite's almond croissant is the most underrated pastry in EaDo. Get there before 10am or weep.",
+     "category": "Food", "neighborhood": "EaDo", "location_name": "Tout Suite", "lat": 29.7505, "lng": -95.3491},
+    {"creator_id": "cr_houstonfoodie", "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=80",
+     "caption": "A 12-table Sichuan spot in Chinatown opened last Tuesday. The mapo tofu numbed my lips for an hour. Worth it.",
+     "category": "Food", "neighborhood": "Chinatown", "location_name": "Mala House", "lat": 29.7028, "lng": -95.5832},
+    {"creator_id": "cr_houstonfoodie", "image": "https://images.pexels.com/photos/35508418/pexels-photo-35508418.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+     "caption": "The taco truck behind the laundromat on Wayside. No sign. Cash only. Best al pastor in the city — fight me.",
+     "category": "Hidden Gems", "neighborhood": "East End", "location_name": "Tacos La Esquina", "lat": 29.7510, "lng": -95.3260},
+    {"creator_id": "cr_houstonfoodie", "image": "https://images.unsplash.com/photo-1559054663-e8d23213f55c?w=800&q=80",
+     "caption": "New natural wine bar in Montrose — Italian small plates, low lighting, no pretension. They poured me a Frappato I'm still thinking about.",
+     "category": "Nightlife", "neighborhood": "Montrose", "location_name": "Vinea", "lat": 29.7430, "lng": -95.3905},
+    {"creator_id": "cr_houstonfoodie", "image": "https://images.unsplash.com/photo-1481833761820-0509d3217039?w=800&q=80",
+     "caption": "Saturday farmer's market at Rice Village. Get there at 8 for the kolaches before they vanish.",
+     "category": "Food", "neighborhood": "Rice Village", "location_name": "Rice Village Farmer's Market", "lat": 29.7174, "lng": -95.4180},
 
-    # Around HTX
-    ("cr_aroundhtx", "https://images.pexels.com/photos/33089291/pexels-photo-33089291.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-     "Friday night block party in the Heights — three bands, a hundred string lights, and the kind of crowd that still says hi to strangers.",
-     "Events", "The Heights", "19th Street", 29.7983, -95.3992),
-    ("cr_aroundhtx", "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80",
-     "Free outdoor jazz at Discovery Green every Thursday in October. Bring a blanket, leave the headphones.",
-     "Events", "Downtown", "Discovery Green", 29.7531, -95.3597),
-    ("cr_aroundhtx", "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80",
-     "Underground warehouse show this Saturday in the East End. DM for the address. Yes, that kind of night.",
-     "Nightlife", "East End", "Warehouse District", 29.7470, -95.3360),
-    ("cr_aroundhtx", "https://images.unsplash.com/photo-1604933834413-4cd1c2c98ad0?w=800&q=80",
-     "Gallery openings, all in walking distance: three new shows in the Museum District this First Saturday.",
-     "Culture", "Museum District", "Museum District", 29.7257, -95.3884),
-    ("cr_aroundhtx", "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&q=80",
-     "Pop-up flower market on Saturday morning at White Oak Music Hall. Free coffee from the truck out back.",
-     "Events", "Near Northside", "White Oak Music Hall", 29.7891, -95.3641),
+    # ---------- Around HTX ----------
+    {"creator_id": "cr_aroundhtx", "image": "https://images.pexels.com/photos/33089291/pexels-photo-33089291.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+     "caption": "Friday night block party in the Heights — three bands, a hundred string lights, and the kind of crowd that still says hi to strangers.",
+     "category": "Events", "neighborhood": "The Heights", "location_name": "19th Street", "lat": 29.7983, "lng": -95.3992},
+    {"creator_id": "cr_aroundhtx", "image": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=80",
+     "caption": "Free outdoor jazz at Discovery Green every Thursday in October. Bring a blanket, leave the headphones.",
+     "category": "Events", "neighborhood": "Downtown", "location_name": "Discovery Green", "lat": 29.7531, "lng": -95.3597},
+    {"creator_id": "cr_aroundhtx", "image": "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80",
+     "caption": "Underground warehouse show this Saturday in the East End. DM for the address. Yes, that kind of night.",
+     "category": "Nightlife", "neighborhood": "East End", "location_name": "Warehouse District", "lat": 29.7470, "lng": -95.3360},
+    {"creator_id": "cr_aroundhtx", "image": "https://images.unsplash.com/photo-1604933834413-4cd1c2c98ad0?w=800&q=80",
+     "caption": "Gallery openings, all in walking distance: three new shows in the Museum District this First Saturday.",
+     "category": "Culture", "neighborhood": "Museum District", "location_name": "Museum District", "lat": 29.7257, "lng": -95.3884},
+    {"creator_id": "cr_aroundhtx", "image": "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&q=80",
+     "caption": "Pop-up flower market on Saturday morning at White Oak Music Hall. Free coffee from the truck out back.",
+     "category": "Events", "neighborhood": "Near Northside", "location_name": "White Oak Music Hall", "lat": 29.7891, "lng": -95.3641},
 
-    # Bayou Walks
-    ("cr_bayouwalks", "https://images.unsplash.com/photo-1542862127-9a4f7fcd1d96?w=900&q=80",
-     "Sunrise on Buffalo Bayou — the cyclists, the herons, the slow gold light. Worth the 6am alarm.",
-     "Outdoor", "Buffalo Bayou", "Buffalo Bayou Park", 29.7600, -95.3950),
-    ("cr_bayouwalks", "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80",
-     "Hermann Park's secret reflecting pool side — most people miss it. Quiet, shaded, full of turtles.",
-     "Hidden Gems", "Hermann Park", "Hermann Park", 29.7196, -95.3902),
-    ("cr_bayouwalks", "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80",
-     "Memorial Park's Eastern Glades just opened a new trail loop — 2.3 miles, mostly shaded, runners' dream.",
-     "Outdoor", "Memorial", "Memorial Park", 29.7641, -95.4347),
-    ("cr_bayouwalks", "https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?w=800&q=80",
-     "Bike rental kiosk just opened at Sabine St — $5 an hour, electric option, perfect for the bayou trail.",
-     "Outdoor", "Sabine", "Sabine Promenade", 29.7635, -95.3825),
+    # ---------- Bayou Walks ----------
+    {"creator_id": "cr_bayouwalks", "image": "https://images.unsplash.com/photo-1542862127-9a4f7fcd1d96?w=900&q=80",
+     "caption": "Sunrise on Buffalo Bayou — the cyclists, the herons, the slow gold light. Worth the 6am alarm.",
+     "category": "Outdoor", "neighborhood": "Buffalo Bayou", "location_name": "Buffalo Bayou Park", "lat": 29.7600, "lng": -95.3950},
+    {"creator_id": "cr_bayouwalks", "image": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80",
+     "caption": "Hermann Park's secret reflecting pool side — most people miss it. Quiet, shaded, full of turtles.",
+     "category": "Hidden Gems", "neighborhood": "Hermann Park", "location_name": "Hermann Park", "lat": 29.7196, "lng": -95.3902},
+    {"creator_id": "cr_bayouwalks", "image": "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800&q=80",
+     "caption": "Memorial Park's Eastern Glades just opened a new trail loop — 2.3 miles, mostly shaded, runners' dream.",
+     "category": "Outdoor", "neighborhood": "Memorial", "location_name": "Memorial Park", "lat": 29.7641, "lng": -95.4347},
+    {"creator_id": "cr_bayouwalks", "image": "https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?w=800&q=80",
+     "caption": "Bike rental kiosk just opened at Sabine St — $5 an hour, electric option, perfect for the bayou trail.",
+     "category": "Outdoor", "neighborhood": "Sabine", "location_name": "Sabine Promenade", "lat": 29.7635, "lng": -95.3825},
 ]
+
+SEED_VERSION = 3  # bump to force a reseed of creators + posts
 
 
 @app.on_event("startup")
@@ -416,29 +513,32 @@ async def startup():
     await db.posts.create_index("creator_id")
     await db.posts.create_index("category")
 
-    if await db.creators.count_documents({}) == 0:
+    meta = await db.app_meta.find_one({"_id": "seed"})
+    current_version = meta["seed_version"] if meta else 0
+
+    if current_version < SEED_VERSION:
+        logger.info("Reseeding content: v%s -> v%s", current_version, SEED_VERSION)
+        await db.creators.delete_many({})
+        await db.posts.delete_many({})
+
         for c in SEED_CREATORS:
             await db.creators.insert_one(c)
         logger.info("Seeded %d creators", len(SEED_CREATORS))
 
-    if await db.posts.count_documents({}) == 0:
         now = datetime.now(timezone.utc)
-        for i, (creator_id, image, caption, category, neighborhood, loc, lat, lng) in enumerate(SEED_POSTS):
+        for i, p in enumerate(SEED_POSTS):
             doc = Post(
                 post_id=f"po_seed_{i:03d}",
-                creator_id=creator_id,
-                image=image,
-                caption=caption,
-                category=category,
-                neighborhood=neighborhood,
-                location_name=loc,
-                lat=lat,
-                lng=lng,
                 likes=100 + (i * 37) % 900,
                 created_at=now - timedelta(hours=i * 5),
+                **p,
             ).dict()
             await db.posts.insert_one(doc)
         logger.info("Seeded %d posts", len(SEED_POSTS))
+
+        await db.app_meta.update_one(
+            {"_id": "seed"}, {"$set": {"seed_version": SEED_VERSION}}, upsert=True
+        )
 
 
 @app.on_event("shutdown")

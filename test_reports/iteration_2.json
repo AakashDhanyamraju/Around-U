@@ -1,0 +1,37 @@
+{
+  "summary": "Backend-only verification of seed v3 ingest (Morteza Safataj Instagram captions + video post support) for the 'Around You' Houston app. Added a new TestSeedV3Ingest class with 7 focused tests against the public preview URL covering: 21 seed posts, new fields (media_type/hashtags/is_sponsored/video_url/source/original_url), exactly 2 video posts (po_seed_000 & po_seed_003) with non-empty video_url, po_seed_000 World Cup caption + hashtags + creator + related, 4 creators including cr_morteza, Events category filter, and category=All == no-filter. All 27 backend tests pass (20 existing + 7 new). Two minor adjustments: seed-count assertions filter out admin-created TEST_* records (DB state across runs is non-idempotent because /api/admin/* endpoints are open and have no DELETE).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/admin/creators, /api/admin/posts", "issue": "Open admin endpoints (no auth) with no corresponding DELETE — repeated test runs leave TEST_ data in DB. Pre-existing, not a seed-v3 regression."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_around_you.py",
+    "/app/test_reports/pytest/around_you_results.xml"
+  ],
+  "action_items": [
+    "Frontend video post rendering (PostCard / detail) was not verified in this iteration — main agent or next testing pass should confirm that media_type='video' renders an inline player (expo-video) and falls back to image gracefully on web preview.",
+    "Consider protecting /api/admin/* endpoints (or adding a delete endpoint) so test data can be cleaned up between runs."
+  ],
+  "critical_code_review_comments": [
+    "server.py uses deprecated FastAPI @app.on_event('startup'/'shutdown'). Migrate to lifespan context manager to silence the DeprecationWarning and future-proof for FastAPI >=0.110.",
+    "Seed migration mutates DB on every restart that bumps SEED_VERSION — fine for MVP, but it wipes creators/posts (db.creators.delete_many({}), db.posts.delete_many({})), which would also drop any admin-created content (including TEST_ records) on the next version bump. Acceptable for MVP, worth noting.",
+    "Single 563-line server.py — within the 700-line guideline but starting to mix auth, content, bookmarks, follows, admin and seed. Consider splitting into routers/seed modules as the app grows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_around_you.py (appended TestSeedV3Ingest class with 7 tests for seed v3 verification)"
+  ],
+  "success_rate": {"backend": "100% (27/27)", "frontend": "not tested (backend-only per request)"},
+  "seed_data_creation": "No new seed data created by the test run beyond the existing TestAdmin class which creates one TEST_Creator + one TEST_post via open /api/admin/* endpoints. Seed verification tests filter these out.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Seed v3 is verified: 4 creators (incl. cr_morteza), 21 posts, exactly 2 videos at po_seed_000 (World Cup listicle) and po_seed_003 (motorcade). New Post fields confirmed present on every post: media_type, video_url, hashtags, source, original_url, is_sponsored. Public read endpoints are healthy. If retesting after another seed bump, just rerun: EXPO_PUBLIC_BACKEND_URL=<preview-url> pytest /app/backend/tests/test_around_you.py -v. Frontend video rendering remains untested.",
+  "rca_of_issue": "N/A — no bug to RCA. Initial run flagged 3 failures, but they were test-data pollution from the existing TestAdmin class (open /api/admin/* endpoints, no DELETE). Fixed by filtering seed verification tests to ignore TEST_* and non-po_seed_* records, so seed-state assertions remain accurate regardless of test ordering."
+}

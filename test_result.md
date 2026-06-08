@@ -101,3 +101,73 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  "around you" — Houston community discovery app (Pinterest-style masonry feed, warm light theme).
+  Current task: Ingest real Morteza Safataj Instagram-scrape captions and add VIDEO post support.
+
+backend:
+  - task: "Post schema: media_type, video_url, hashtags, source, original_url, is_sponsored"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Added new fields to Post + PostCreate models. Defaults: media_type=image, hashtags=[], is_sponsored=false."
+  - task: "Seed migration v3 with real Morteza captions + 2 video posts"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "app_meta seed_version gate forces reseed. 21 posts, 7 Morteza real captions, po_seed_000 & po_seed_003 are media_type=video with w3.org sample mp4. Verified via curl: 21 posts, 2 videos."
+  - task: "GET /api/posts, /api/posts/{id}, /api/creators return new fields"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Endpoints unchanged structurally; should now include media_type/video_url/hashtags in payloads."
+
+frontend:
+  - task: "MediaTile component (autoplay muted loop video on native, poster+play badge on web)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/MediaTile.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Verified on web via screenshot: poster image + center play badge renders for video posts (po_seed_000). Native video playback cannot be validated in web preview/Expo Go — requires a real build."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Seed migration v3 with real Morteza captions + 2 video posts"
+    - "GET /api/posts, /api/posts/{id}, /api/creators return new fields"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: "Please test the backend only. Verify: (1) GET /api/posts returns 21 posts and each includes media_type, hashtags, is_sponsored fields; (2) exactly 2 posts have media_type=='video' with a non-empty video_url (po_seed_000, po_seed_003); (3) GET /api/posts/po_seed_000 returns the post with full caption + hashtags array; (4) GET /api/creators returns 4 creators incl cr_morteza; (5) category filter GET /api/posts?category=Events works. No auth needed for these public endpoints."
