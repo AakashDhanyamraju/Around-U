@@ -1,0 +1,45 @@
+# Local self-hosted stack.
+#
+# Postgres lives in Supabase and Redis in Redis Cloud, so neither runs here —
+# only the API. A local Redis is available behind a profile if you would rather
+# not depend on the hosted one during development:
+#
+#   docker compose up api                      # API only (hosted Redis)
+#   docker compose --profile local-cache up     # API + local Redis
+#
+# Secrets come from backend/.env, which is never baked into the image.
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      # Reachable from the host browser and from the Expo dev server.
+      PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["local-cache"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    # With this profile active, point backend/.env at:
+    #   REDIS_URL=redis://redis:6379/0

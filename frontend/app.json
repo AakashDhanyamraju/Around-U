@@ -1,20 +1,22 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Around You",
+    "slug": "around-you",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "around-you",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aroundyou.app"
     },
     "android": {
+      "package": "com.aroundyou.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#FFF4EB"
       },
       "edgeToEdgeEnabled": true
     },
@@ -31,11 +33,24 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000"
+          "backgroundColor": "#FFF4EB"
         }
       ],
       "expo-font",
-      "expo-video"
+      "expo-video",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Around You uses your photos so you can add one to a spot."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Around You uses your location to sort spots by how far away they are."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

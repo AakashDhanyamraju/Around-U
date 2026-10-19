@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Pressable, StyleSheet, StyleProp, ViewStyle, Platform } from "react-native";
+import {
+  View,
+  Pressable,
+  StyleSheet,
+  StyleProp,
+  ViewStyle,
+  ImageStyle,
+  Platform,
+} from "react-native";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
@@ -62,7 +70,10 @@ export function MediaTile({
     return (
       <Image
         source={{ uri: post.image }}
-        style={[StyleSheet.absoluteFillObject, style]}
+        // Callers pass layout styles that are valid for both a View and an
+        // Image; the types differ only in ViewStyle allowing overflow:"scroll",
+        // which is never used here.
+        style={[StyleSheet.absoluteFillObject, style as StyleProp<ImageStyle>]}
         contentFit={contentFit}
         transition={250}
       />

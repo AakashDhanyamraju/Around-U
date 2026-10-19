@@ -1,231 +1,461 @@
-import React, { useEffect, useState, useCallback } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, RefreshControl,
-  ActivityIndicator, Pressable,
-} from "react-native";
-import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
+/**
+ * Explore — design panel `1c`. Where you land, signed in or not.
+ *
+ * The organising idea is the *beat*: a creator plus the category they own,
+ * shown as a mosaic row of their work. Finding people is the point of the
+ * product, so search sits at the top of the screen and the beats are the body —
+ * a flat grid of posts would bury the person behind every recommendation.
+ *
+ * Beats are assembled client-side from /creators + /posts. That is honest at
+ * current data volume; when a dedicated endpoint exists it drops in behind
+ * `useBeats` without touching the layout.
+ */
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import { Image } from "expo-image";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { api, Post } from "@/src/api";
-import { colors, fonts, radii, shadow, CATEGORIES } from "@/src/theme";
-import { CategoryChips } from "@/src/components/CategoryChips";
-import { MasonryGrid } from "@/src/components/MasonryGrid";
+import { api, Creator, Post } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import {
+  Avatar,
+  ChipRow,
+  Hatch,
+  Loading,
+  Mono,
+  OverlayPill,
+  Screen,
+  ScreenTitle,
+  SearchBar,
+} from "@/src/components/organic";
+import { useSocial } from "@/src/social";
+import { useSpots } from "@/src/spots-context";
+import { FILTER_CATEGORIES, fonts, radii, space, type } from "@/src/theme";
+import { Theme, useTheme } from "@/src/theme-context";
 
-export default function DiscoverScreen() {
+/** A creator and the posts of theirs that share one category. */
+type Beat = {
+  creator: Creator;
+  category: string;
+  posts: Post[];
+};
+
+/**
+ * Groups posts by creator × category and keeps the busiest beat per creator, so
+ * one person doesn't occupy four rows. Ordered by how much they've published,
+ * which is the closest proxy we have for "who owns this beat".
+ */
+function buildBeats(creators: Creator[], posts: Post[]): Beat[] {
+  const byCreator = new Map<string, Map<string, Post[]>>();
+
+  for (const post of posts) {
+    if (!post.creator_id) continue;
+    const cats = byCreator.get(post.creator_id) ?? new Map<string, Post[]>();
+    const list = cats.get(post.category) ?? [];
+    list.push(post);
+    cats.set(post.category, list);
+    byCreator.set(post.creator_id, cats);
+  }
+
+  const beats: Beat[] = [];
+  for (const creator of creators) {
+    const cats = byCreator.get(creator.creator_id);
+    if (!cats) continue;
+    let best: Beat | null = null;
+    for (const [category, list] of cats) {
+      if (!best || list.length > best.posts.length) {
+        best = { creator, category, posts: list };
+      }
+    }
+    if (best) beats.push(best);
+  }
+
+  return beats.sort((a, b) => b.posts.length - a.posts.length);
+}
+
+export default function ExploreScreen() {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const router = useRouter();
   const { user } = useAuth();
+  const { followIds, toggleFollow } = useSocial();
+  const { unread, reloadUnread } = useSpots();
+
+  // Explore is the landing screen, so it is the one place the dot is certain to
+  // be seen. No polling — this is enough.
+  useFocusEffect(
+    useCallback(() => {
+      reloadUnread();
+    }, [reloadUnread]),
+  );
+
+  const [creators, setCreators] = useState<Creator[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [category, setCategory] = useState("All");
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async (cat: string) => {
-    const data = await api<Post[]>(`/posts?category=${encodeURIComponent(cat)}`, { auth: false });
-    setPosts(data);
+  const load = useCallback(async () => {
+    const [c, p] = await Promise.all([
+      api<Creator[]>("/creators", { auth: false }),
+      api<Post[]>("/posts", { auth: false }),
+    ]);
+    setCreators(c);
+    setPosts(p);
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    load(category).finally(() => setLoading(false));
-  }, [category, load]);
+    load()
+      .catch(() => {
+        setCreators([]);
+        setPosts([]);
+      })
+      .finally(() => setLoading(false));
+  }, [load]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    try { await load(category); } finally { setRefreshing(false); }
+    try {
+      await load();
+    } catch {
+      // Keep whatever is on screen; a pull-to-refresh failure is not worth a
+      // full-screen error when the previous data is still perfectly good.
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  const featured = posts[0];
-  const rest = posts.slice(1);
-  const firstName = user?.name?.split(" ")[0] || "friend";
+  const beats = useMemo(() => {
+    const all = buildBeats(creators, posts);
+    const q = query.trim().toLowerCase();
+    return all.filter((b) => {
+      if (category !== "All" && b.category !== category) return false;
+      if (!q) return true;
+      return (
+        b.creator.name.toLowerCase().includes(q) ||
+        b.creator.handle.toLowerCase().includes(q) ||
+        b.category.toLowerCase().includes(q) ||
+        b.posts.some(
+          (p) =>
+            p.neighborhood?.toLowerCase().includes(q) ||
+            p.location_name?.toLowerCase().includes(q) ||
+            p.caption.toLowerCase().includes(q),
+        )
+      );
+    });
+  }, [creators, posts, category, query]);
 
   return (
-    <View style={styles.root}>
-      {/* peach blobs in background */}
-      <View style={[styles.blob, { top: -120, right: -120, backgroundColor: colors.blob, opacity: 0.55 }]} />
-      <View style={[styles.blob, { top: 220, left: -160, width: 320, height: 320, backgroundColor: colors.blobSoft, opacity: 0.6 }]} />
-
-      <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-        <View style={styles.header}>
-          <View style={styles.logoPill}>
-            <View style={styles.logoIcon}>
-              <Ionicons name="location" size={14} color="#fff" />
-            </View>
-            <View>
-              <Text style={styles.logoText}>around you</Text>
-              <Text style={styles.logoCity}>· Houston</Text>
-            </View>
-          </View>
-          <Pressable style={styles.bellBtn}>
-            <Ionicons name="notifications-outline" size={18} color={colors.textPrimary} />
-            <View style={styles.bellDot} />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={{ paddingBottom: 40 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
-          testID="discover-scroll"
-          stickyHeaderIndices={[1]}
-        >
-          <View style={styles.greetingBlock}>
-            <Text style={styles.greeting}>
-              Good day, <Text style={{ color: colors.primary, fontFamily: fonts.displayXL }}>{firstName}</Text> 👋
-            </Text>
-            <Text style={styles.greetingSub}>
-              {posts.length} fresh stories from your neighborhood today
-            </Text>
-          </View>
-
-          <View style={styles.chipsSticky}>
-            <CategoryChips categories={CATEGORIES} selected={category} onSelect={setCategory} />
-          </View>
-
-          {loading ? (
-            <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
-          ) : (
-            <>
-              {featured && (
-                <Animated.View entering={FadeInDown.duration(500)} style={styles.featuredSection}>
-                  <View style={styles.sectionHead}>
-                    <View style={styles.sectionAccent} />
-                    <Text style={styles.sectionTitle}>Featured Today</Text>
-                    <Pressable><Text style={styles.seeAll}>See all →</Text></Pressable>
-                  </View>
-                  <Pressable
-                    testID={`featured-${featured.post_id}`}
-                    onPress={() => router.push(`/post/${featured.post_id}`)}
-                    style={({ pressed }) => [styles.featuredCard, pressed && { transform: [{ scale: 0.99 }] }]}
-                  >
-                    <Image source={{ uri: featured.image }} style={styles.featuredImage} contentFit="cover" />
-                    {/* Droplet-style date tab (inspired by community event cards) */}
-                    <View style={styles.dateDroplet}>
-                      <Text style={styles.dateDay}>{new Date(featured.created_at).getDate()}</Text>
-                      <Text style={styles.dateMon}>{new Date(featured.created_at).toLocaleString("en", { month: "short" }).toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.featuredTopRow}>
-                      <View style={styles.featuredChipRow}>
-                        <View style={styles.featuredStar}>
-                          <Ionicons name="star" size={10} color="#fff" />
-                          <Text style={styles.featuredStarText}>Featured</Text>
-                        </View>
-                        <View style={styles.featuredCatChip}>
-                          <Text style={styles.featuredCatText}>{featured.category}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.featuredSave}>
-                        <Ionicons name="bookmark-outline" size={16} color={colors.textPrimary} />
-                      </View>
-                    </View>
-                    <View style={styles.featuredBottom}>
-                      {featured.creator && (
-                        <View style={styles.creatorBlob}>
-                          <Image source={{ uri: featured.creator.avatar }} style={styles.creatorAvatar} />
-                          <Text style={styles.creatorVia}>via {featured.creator.handle}</Text>
-                        </View>
-                      )}
-                      <Text style={styles.featuredTitle} numberOfLines={2}>{featured.caption}</Text>
-                      <View style={styles.featuredMetaRow}>
-                        <View style={styles.metaPill}>
-                          <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
-                          <Text style={styles.metaPillText}>{featured.neighborhood}</Text>
-                        </View>
-                        <View style={styles.metaPill}>
-                          <Ionicons name="heart-outline" size={12} color={colors.textSecondary} />
-                          <Text style={styles.metaPillText}>{featured.likes}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  </Pressable>
-                </Animated.View>
-              )}
-
-              <View style={styles.localHead}>
-                <View style={styles.sectionAccent} />
-                <Text style={styles.sectionTitle}>Local Highlights</Text>
-              </View>
-
-              {rest.length > 0 ? (
-                <View style={{ marginTop: 4 }}>
-                  <MasonryGrid posts={rest} />
+    <Screen>
+      <View style={s.header}>
+        <ScreenTitle
+          trailing={
+            <Pressable
+              onPress={() => router.push(user ? "/account" : "/login")}
+              accessibilityRole="button"
+              accessibilityLabel={
+                user
+                  ? unread > 0
+                    ? `Your account, ${unread} new`
+                    : "Your account"
+                  : "Sign in"
+              }
+              hitSlop={8}
+            >
+              {user ? (
+                <View>
+                  <Avatar name={user.name} uri={user.picture} size={30} seed={user.user_id} />
+                  {/* The dot rides the avatar rather than changing where it
+                      goes: a control whose destination depends on invisible
+                      state is unpredictable by construction. */}
+                  {unread > 0 && <View style={s.unreadDot} />}
                 </View>
               ) : (
-                <View style={styles.center}>
-                  <Text style={styles.empty}>No stories in this category yet.</Text>
+                <View style={s.cityRow}>
+                  <Ionicons name="location" size={12} color={t.accentRamp[700]} />
+                  <Text style={s.cityText}>{t.cityName}</Text>
                 </View>
               )}
-            </>
-          )}
-        </ScrollView>
-      </SafeAreaView>
+            </Pressable>
+          }
+        >
+          Explore
+        </ScreenTitle>
+
+        <SearchBar
+          placeholder="Search people, places, hashtags"
+          value={query}
+          onChangeText={setQuery}
+          active={query.length > 0}
+        />
+      </View>
+
+      <View style={{ paddingBottom: 11 }}>
+        <ChipRow items={FILTER_CATEGORIES} selected={category} onSelect={setCategory} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 32, gap: 16 }}
+        showsVerticalScrollIndicator={false}
+        testID="discover-scroll"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={t.accent}
+          />
+        }
+      >
+        {loading ? (
+          <Loading />
+        ) : beats.length === 0 ? (
+          <View style={s.empty}>
+            <Text style={s.emptyTitle}>
+              {query ? "Nobody covering that yet" : "No beats in this category yet"}
+            </Text>
+            <Text style={s.emptyBody}>
+              {query
+                ? `Nothing in ${t.cityName} matches “${query.trim()}”. Try a neighbourhood or a dish.`
+                : "As creators publish, the people who own each beat show up here."}
+            </Text>
+          </View>
+        ) : (
+          beats.map((beat) => (
+            <BeatRow
+              key={`${beat.creator.creator_id}-${beat.category}`}
+              beat={beat}
+              following={followIds.has(beat.creator.creator_id)}
+              onFollow={() =>
+                user
+                  ? toggleFollow(beat.creator.creator_id)
+                  : router.push("/login")
+              }
+              onOpenCreator={() => router.push(`/creator/${beat.creator.creator_id}`)}
+              onOpenPost={(id) => router.push(`/post/${id}`)}
+            />
+          ))
+        )}
+      </ScrollView>
+    </Screen>
+  );
+}
+
+/**
+ * One beat. The mosaic shape alternates by post count so the board doesn't read
+ * as a uniform grid — the design uses a hero-plus-two, an even three, and a
+ * two-up depending on what the creator has.
+ */
+function BeatRow({
+  beat,
+  following,
+  onFollow,
+  onOpenCreator,
+  onOpenPost,
+}: {
+  beat: Beat;
+  following: boolean;
+  onFollow: () => void;
+  onOpenCreator: () => void;
+  onOpenPost: (postId: string) => void;
+}) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  const shown = beat.posts.slice(0, 3);
+
+  return (
+    <View style={{ gap: 9, paddingHorizontal: 20 }}>
+      <View style={s.beatHead}>
+        <Pressable
+          onPress={onOpenCreator}
+          accessibilityRole="button"
+          style={s.beatWho}
+          hitSlop={6}
+        >
+          <Avatar
+            name={beat.creator.name}
+            uri={beat.creator.avatar}
+            size={30}
+            seed={beat.creator.creator_id}
+          />
+          <Text style={s.beatTitle} numberOfLines={1}>
+            {beat.creator.name.split(" ")[0]} on {beat.category}
+          </Text>
+        </Pressable>
+        <Mono>{beat.posts.length} posts</Mono>
+        <Pressable
+          onPress={onFollow}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={
+            following
+              ? `Unfollow ${beat.creator.name}`
+              : `Follow ${beat.creator.name}`
+          }
+        >
+          <Text style={[s.follow, following && { color: t.ink(55) }]}>
+            {following ? "Following" : "Follow"}
+          </Text>
+        </Pressable>
+      </View>
+
+      <Mosaic posts={shown} onOpenPost={onOpenPost} />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  blob: { position: "absolute", width: 380, height: 380, borderRadius: 999 },
-  header: {
-    paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10,
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-  },
-  logoPill: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingLeft: 4, paddingRight: 14, paddingVertical: 4, borderRadius: radii.pill,
-    backgroundColor: colors.surface, ...shadow,
-  },
-  logoIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  logoText: { color: colors.textPrimary, fontSize: 14, fontFamily: fonts.bodyBold },
-  logoCity: { color: colors.textSecondary, fontSize: 10, fontFamily: fonts.bodyMed, marginTop: -2 },
-  bellBtn: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surface,
-    alignItems: "center", justifyContent: "center", ...shadow,
-  },
-  bellDot: { position: "absolute", top: 10, right: 11, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, borderWidth: 1.5, borderColor: colors.surface },
-  greetingBlock: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 18 },
-  greeting: { fontFamily: fonts.display, fontSize: 26, color: colors.textPrimary, letterSpacing: -0.5 },
-  greetingSub: { fontFamily: fonts.body, fontSize: 13, color: colors.textSecondary, marginTop: 4 },
-  chipsSticky: { backgroundColor: colors.background },
-  featuredSection: { paddingTop: 16 },
-  sectionHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginBottom: 12, gap: 8 },
-  sectionAccent: { width: 3, height: 16, backgroundColor: colors.primary, borderRadius: 2 },
-  sectionTitle: { flex: 1, fontFamily: fonts.displayXL, fontSize: 18, color: colors.textPrimary, letterSpacing: -0.3 },
-  seeAll: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.primary },
-  featuredCard: {
-    marginHorizontal: 20, height: 380, borderRadius: radii.xl, overflow: "hidden",
-    backgroundColor: colors.surfaceAlt, ...shadow,
-  },
-  featuredImage: { ...StyleSheet.absoluteFillObject },
-  dateDroplet: {
-    position: "absolute", top: 20, left: 0,
-    backgroundColor: colors.primary,
-    paddingVertical: 8, paddingHorizontal: 12,
-    borderTopRightRadius: 14, borderBottomRightRadius: 14,
-    borderTopLeftRadius: 4, borderBottomLeftRadius: 4,
-    alignItems: "center", minWidth: 48,
-    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 2, height: 4 }, elevation: 6,
-  },
-  dateDay: { color: "#fff", fontFamily: fonts.displayXL, fontSize: 18, lineHeight: 20, letterSpacing: -0.5 },
-  dateMon: { color: "rgba(255,255,255,0.9)", fontFamily: fonts.bodyBold, fontSize: 9, letterSpacing: 1.2, marginTop: 1 },
-  featuredTopRow: { position: "absolute", top: 14, left: 14, right: 14, flexDirection: "row", justifyContent: "space-between" },
-  featuredChipRow: { flexDirection: "row", gap: 6 },
-  featuredStar: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radii.pill },
-  featuredStarText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 11 },
-  featuredCatChip: { backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: radii.pill },
-  featuredCatText: { color: colors.textPrimary, fontFamily: fonts.bodySemi, fontSize: 11 },
-  featuredSave: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.95)", alignItems: "center", justifyContent: "center" },
-  featuredBottom: { position: "absolute", left: 14, right: 14, bottom: 14, backgroundColor: "rgba(255,255,255,0.96)", borderRadius: radii.lg, padding: 14, gap: 8 },
-  creatorBlob: { flexDirection: "row", alignItems: "center", gap: 6 },
-  creatorAvatar: { width: 24, height: 24, borderRadius: 12 },
-  creatorVia: { color: colors.textSecondary, fontFamily: fonts.bodySemi, fontSize: 12 },
-  featuredTitle: { fontFamily: fonts.displayXL, fontSize: 17, color: colors.textPrimary, lineHeight: 22, letterSpacing: -0.3 },
-  featuredMetaRow: { flexDirection: "row", gap: 8, marginTop: 4 },
-  metaPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4, paddingHorizontal: 8, backgroundColor: colors.surfaceAlt, borderRadius: radii.pill },
-  metaPillText: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.textSecondary },
-  localHead: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, marginTop: 28, marginBottom: 14, gap: 8 },
-  center: { paddingVertical: 60, alignItems: "center" },
-  empty: { color: colors.textSecondary, fontFamily: fonts.body },
-});
+/**
+ * Hero-plus-stack when there are three, side by side when there are two, full
+ * width when there is one. The design alternates these deliberately so the
+ * board doesn't settle into a uniform grid.
+ */
+function Mosaic({
+  posts,
+  onOpenPost,
+}: {
+  posts: Post[];
+  onOpenPost: (postId: string) => void;
+}) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+
+  const tile = (post: Post, style?: object) => (
+    <Pressable
+      key={post.post_id}
+      testID={`beat-tile-${post.post_id}`}
+      onPress={() => onOpenPost(post.post_id)}
+      accessibilityRole="button"
+      accessibilityLabel={post.caption}
+      style={[s.tile, style]}
+    >
+      <Tile post={post} />
+    </Pressable>
+  );
+
+  if (posts.length >= 3) {
+    return (
+      <View style={s.mosaicHero}>
+        {tile(posts[0], { flex: 1.6 })}
+        <View style={{ flex: 1, gap: 7 }}>
+          {tile(posts[1])}
+          {tile(posts[2])}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={s.mosaicPair}>
+      {posts.map((p, i) => tile(p, posts.length === 2 && i === 1 ? { flex: 1.6 } : undefined))}
+    </View>
+  );
+}
+
+function Tile({ post }: { post: Post }) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  const isVideo = post.media_type === "video";
+
+  return (
+    <View style={{ flex: 1 }}>
+      {post.image ? (
+        <Image
+          source={{ uri: post.image }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={180}
+        />
+      ) : (
+        <Hatch style={StyleSheet.absoluteFill} />
+      )}
+      {isVideo ? (
+        <OverlayPill style={s.tileBadge}>
+          <Ionicons name="play" size={9} color="#fff" />
+        </OverlayPill>
+      ) : post.location_name ? (
+        <View style={s.tileNote}>
+          <Text style={s.tileNoteText} numberOfLines={1}>
+            {post.location_name}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 11, gap: 10 },
+    cityRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+    unreadDot: {
+      position: "absolute",
+      top: -1,
+      right: -1,
+      width: 10,
+      height: 10,
+      borderRadius: radii.pill,
+      backgroundColor: t.accent,
+      // Ringed in the page colour so it reads against any avatar photo.
+      borderWidth: 2,
+      borderColor: t.bg,
+    },
+    cityText: {
+      fontFamily: fonts.bodySemi,
+      fontSize: 12,
+      color: t.accentRamp[700],
+    },
+    beatHead: { flexDirection: "row", alignItems: "center", gap: 9 },
+    beatWho: { flexDirection: "row", alignItems: "center", gap: 9, flexShrink: 1 },
+    beatTitle: {
+      fontFamily: fonts.bodyBold,
+      fontSize: type.meta,
+      color: t.text,
+      flexShrink: 1,
+    },
+    follow: {
+      marginLeft: "auto",
+      fontFamily: fonts.bodyBold,
+      fontSize: type.micro,
+      color: t.accentRamp[700],
+    },
+    mosaicHero: { flexDirection: "row", gap: 7, height: 199 },
+    mosaicPair: { flexDirection: "row", gap: 7, height: 110 },
+    tile: {
+      flex: 1,
+      borderRadius: radii.md,
+      overflow: "hidden",
+      backgroundColor: t.neutral[200],
+    },
+    /** The hero tile is 1.6fr wide and spans both rows of the mosaic. */
+    tileHero: { flex: 1.6 },
+    tileBadge: { position: "absolute", bottom: 7, left: 7 },
+    tileNote: {
+      position: "absolute",
+      bottom: 7,
+      left: 7,
+      right: 7,
+      alignSelf: "flex-start",
+      backgroundColor: t.bg,
+      paddingHorizontal: 7,
+      paddingVertical: 5,
+      borderRadius: radii.pill,
+    },
+    tileNoteText: { fontFamily: fonts.mono, fontSize: 9, color: t.neutral[700] },
+    empty: { paddingHorizontal: 20, paddingVertical: space[8], gap: 8 },
+    emptyTitle: { fontFamily: fonts.heading, fontSize: type.h4, color: t.text },
+    emptyBody: {
+      fontFamily: fonts.body,
+      fontSize: type.bodySm,
+      lineHeight: 21,
+      color: t.ink(62),
+    },
+  });
+}

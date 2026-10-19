@@ -13,24 +13,23 @@
 //     (or `<feature>-<element>-<qualifier>` when an element repeats). Examples:
 //     'login-submit-button', 'cart-quantity-input', 'product-card-image'.
 //
-// Why kebab-case values: required by qabot's CSS-attribute-style selector
-// matcher and the lint rule `emergent(kebab-case-testid-prop)`.
+// Why kebab-case values: they work as CSS-attribute-style selectors for
+// browser-driven E2E tooling (Playwright: [data-testid="login-submit-button"],
+// which react-native-web emits from `testID` on web).
 
+// Auth is passwordless: one screen covers both sign-in and sign-up, because
+// entering a code either finds the account or creates it. There is no separate
+// REGISTER surface and no password field anywhere.
 export const LOGIN = {
 	emailInput: 'login-email-input',
-	passwordInput: 'login-password-input',
 	submitButton: 'login-submit-button',
-	forgotPasswordLink: 'login-forgot-password-link',
-	registerLink: 'login-register-link',
-};
-
-export const REGISTER = {
-	nameInput: 'register-name-input',
-	emailInput: 'register-email-input',
-	passwordInput: 'register-password-input',
-	passwordConfirmInput: 'register-password-confirm-input',
-	submitButton: 'register-submit-button',
-	loginLink: 'register-login-link',
+	googleButton: 'login-google-button',
+	guestLink: 'login-guest-link',
+	// Second stage, after a code has been sent.
+	codeInput: 'login-code-input',
+	verifyButton: 'login-verify-button',
+	resendLink: 'login-resend-link',
+	changeEmailLink: 'login-change-email-link',
 };
 
 export const LOGOUT = {

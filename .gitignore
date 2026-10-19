@@ -75,6 +75,8 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
+frontend/.metro-cache/
+frontend/.expo/
 
 memory/test_credentials.md
 
@@ -86,3 +88,7 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Templates are safe to commit — they hold no real values.
+!.env.example
+!**/.env.example

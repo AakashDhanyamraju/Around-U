@@ -1,253 +1,349 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-  Dimensions,
-} from "react-native";
+/**
+ * Post — design panel `1d`.
+ *
+ * Media fills the top third, then the person, then the words. The place sits in
+ * its own card rather than as a line of meta, because "where is this" is the
+ * question the screen exists to answer.
+ */
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { api, Creator, Post } from "@/src/api";
-import { colors, fonts, radii } from "@/src/theme";
-import { useSocial } from "@/src/social";
-import { MasonryGrid } from "@/src/components/MasonryGrid";
+import { api, ApiError, Creator, Post } from "@/src/api";
+import { useAuth } from "@/src/auth";
+import {
+  Avatar,
+  Hatch,
+  Loading,
+  Mono,
+  PillButton,
+  SectionHeading,
+  Tag,
+} from "@/src/components/organic";
 import { MediaTile } from "@/src/components/MediaTile";
-
-const HERO_H = Math.round(Dimensions.get("window").height * 0.55);
+import { ReportSheet } from "@/src/components/organic/ReportSheet";
+import { useSocial } from "@/src/social";
+import { fonts, radii, space, type } from "@/src/theme";
+import { Theme, useTheme } from "@/src/theme-context";
 
 export default function PostDetail() {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const { bookmarkIds, toggleBookmark, followIds, toggleFollow } = useSocial();
+
   const [post, setPost] = useState<Post | null>(null);
   const [creator, setCreator] = useState<Creator | null>(null);
   const [related, setRelated] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    api<{ post: Post; creator: Creator; related: Post[] }>(`/posts/${id}`, { auth: false })
+    api<{ post: Post; creator: Creator | null; related: Post[] }>(`/posts/${id}`, {
+      auth: false,
+    })
       .then((r) => {
         setPost(r.post);
-        setCreator(r.creator);
-        setRelated(r.related);
+        setCreator(r.creator ?? r.post.creator ?? null);
+        setRelated(r.related ?? []);
       })
+      .catch((e) =>
+        setError(e instanceof ApiError ? e.message : "Could not load this post."),
+      )
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading || !post) {
+  if (loading) {
     return (
-      <View style={styles.loadWrap}>
-        <ActivityIndicator color={colors.primary} />
+      <View style={s.root}>
+        <Loading />
       </View>
+    );
+  }
+
+  if (!post) {
+    return (
+      <SafeAreaView style={s.root} edges={["top"]}>
+        <View style={{ padding: 26, gap: 12 }}>
+          <Text style={s.title}>Not here</Text>
+          <Text style={s.caption}>{error || "That post has gone."}</Text>
+          <PillButton
+            label="Back"
+            variant="ghost"
+            onPress={() => router.back()}
+            style={{ alignSelf: "flex-start" }}
+          />
+        </View>
+      </SafeAreaView>
     );
   }
 
   const saved = bookmarkIds.has(post.post_id);
   const following = creator ? followIds.has(creator.creator_id) : false;
+  const requireAuth = (fn: () => void) => () =>
+    user ? fn() : router.push("/login");
+
+  const share = async () => {
+    try {
+      await Share.share({
+        message: post.location_name
+          ? `${post.location_name} — ${post.caption}`
+          : post.caption,
+      });
+    } catch {
+      // The sheet was dismissed, or the platform declined. Nothing to report.
+    }
+  };
 
   return (
-    <View style={styles.root}>
+    <View style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false} testID="post-scroll">
-        <View style={{ height: HERO_H }}>
-          <MediaTile post={post} contentFit="cover" showMute autoPlay />
-          <LinearGradient
-            colors={["rgba(0,0,0,0.45)", "transparent", "rgba(28,25,23,0.0)"]}
-            locations={[0, 0.3, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-          <SafeAreaView edges={["top"]} style={styles.topBar}>
-            <Pressable testID="back-btn" onPress={() => router.back()} style={styles.iconBtn}>
-              <Ionicons name="chevron-back" size={22} color="#fff" />
+        <View style={s.hero}>
+          {post.image || post.video_url ? (
+            <MediaTile post={post} contentFit="cover" showMute autoPlay />
+          ) : (
+            <Hatch tone="accent" style={StyleSheet.absoluteFill} />
+          )}
+
+          <SafeAreaView edges={["top"]} style={s.heroBar}>
+            <Pressable
+              testID="back-btn"
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              style={s.overlayBtn}
+            >
+              <Ionicons name="chevron-back" size={20} color="#fff" />
             </Pressable>
             <Pressable
-              testID="save-btn"
-              onPress={() => toggleBookmark(post.post_id)}
-              style={styles.iconBtn}
+              testID="report-btn"
+              onPress={requireAuth(() => setReporting(true))}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
+              style={s.overlayBtn}
             >
-              <Ionicons name={saved ? "bookmark" : "bookmark-outline"} size={20} color="#fff" />
+              <Ionicons name="ellipsis-horizontal" size={18} color="#fff" />
             </Pressable>
           </SafeAreaView>
         </View>
 
-        <View style={styles.body}>
-          <View style={styles.chipsRow}>
-            <View style={styles.metaChip}>
-              <Ionicons name="location-outline" size={12} color={colors.primary} />
-              <Text style={styles.metaChipText}>{post.neighborhood}</Text>
-            </View>
-            <View style={styles.metaChip}>
-              <Text style={styles.metaChipText}>{post.category}</Text>
-            </View>
+        <View style={s.body}>
+          <View style={s.creatorRow}>
+            <Pressable
+              onPress={() =>
+                creator && router.push(`/creator/${creator.creator_id}`)
+              }
+              disabled={!creator}
+              accessibilityRole="button"
+              style={s.creatorWho}
+            >
+              <Avatar
+                name={creator?.name}
+                uri={creator?.avatar}
+                size={40}
+                seed={creator?.creator_id}
+              />
+              <View style={{ gap: 2, flexShrink: 1 }}>
+                <Text style={s.creatorName} numberOfLines={1}>
+                  {creator?.name ?? "Around You"}
+                </Text>
+                <Mono numberOfLines={1}>
+                  {[creator?.handle, creator && `${creator.followers} followers`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Mono>
+              </View>
+            </Pressable>
+            {creator && (
+              <PillButton
+                label={following ? "Following" : "Follow"}
+                variant={following ? "ghost" : "primary"}
+                size="sm"
+                onPress={requireAuth(() => toggleFollow(creator.creator_id))}
+              />
+            )}
           </View>
 
-          <Text style={styles.caption}>{post.caption}</Text>
+          <Text style={s.caption}>{post.caption}</Text>
 
-          {post.hashtags && post.hashtags.length > 0 ? (
-            <View style={styles.tagsRow}>
-              {post.hashtags.map((t) => (
-                <View key={t} style={styles.tagChip}>
-                  <Text style={styles.tagText}>#{t}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
+          <View style={s.tagRow}>
+            <Tag label={post.category} tone="accent" />
+            {post.hashtags?.map((h) => (
+              <Tag key={h} label={h.startsWith("#") ? h : `#${h}`} tone="outline" />
+            ))}
+          </View>
 
-          {post.category === "Events" ? (
-            <View style={styles.interestRow}>
-              <View style={styles.interestAvatars}>
-                <Image source={{ uri: "https://i.pravatar.cc/40?img=12" }} style={[styles.iAvatar, { marginLeft: 0 }]} />
-                <Image source={{ uri: "https://i.pravatar.cc/40?img=32" }} style={styles.iAvatar} />
-                <Image source={{ uri: "https://i.pravatar.cc/40?img=45" }} style={styles.iAvatar} />
-              </View>
-              <Text style={styles.interestText}>+{120 + (post.likes % 200)} neighbors interested</Text>
-              <Pressable testID="interested-btn" style={styles.interestBtn}>
-                <Text style={styles.interestBtnText}>I&apos;m in</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {post.location_name ? (
-            <View style={styles.locationCard}>
-              <Ionicons name="pin" size={16} color={colors.primary} />
-              <Text style={styles.locationText}>{post.location_name}</Text>
-            </View>
-          ) : null}
-
-          {creator ? (
-            <Pressable
-              testID="creator-card"
-              onPress={() => router.push(`/creator/${creator.creator_id}`)}
-              style={styles.creatorCard}
-            >
-              <Image source={{ uri: creator.avatar }} style={styles.creatorAvatar} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.creatorName}>{creator.name}</Text>
-                <Text style={styles.creatorHandle}>{creator.handle}</Text>
-              </View>
-              <Pressable
-                testID="follow-btn"
-                onPress={(e) => {
-                  e.stopPropagation();
-                  toggleFollow(creator.creator_id);
-                }}
-                style={[styles.followBtn, following && styles.followBtnActive]}
-              >
-                <Text style={[styles.followText, following && styles.followTextActive]}>
-                  {following ? "Following" : "Follow"}
+          {(post.location_name || post.neighborhood) && (
+            <View style={s.placeCard}>
+              <Ionicons name="location" size={18} color={t.accentRamp[700]} />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={s.placeName} numberOfLines={1}>
+                  {post.location_name || post.neighborhood}
                 </Text>
-              </Pressable>
-            </Pressable>
+                <Mono numberOfLines={1}>
+                  {[post.neighborhood, post.lat && post.lng ? "pin dropped" : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Mono>
+              </View>
+              <PillButton
+                label="Map"
+                variant="soft"
+                size="sm"
+                onPress={() => router.push("/(tabs)/nearby")}
+              />
+            </View>
+          )}
+
+          {post.source ? (
+            <Mono>
+              via {post.source}
+              {post.is_sponsored ? " · sponsored" : ""}
+            </Mono>
+          ) : post.is_sponsored ? (
+            <Tag label="Sponsored" tone="accent2" style={{ alignSelf: "flex-start" }} />
           ) : null}
 
-          {related.length > 0 ? (
-            <View style={{ marginTop: 28 }}>
-              <Text style={styles.relatedTitle}>More in {post.category.toLowerCase()}</Text>
-              <View style={{ marginHorizontal: -12, marginTop: 12 }}>
-                <MasonryGrid posts={related} />
+          {related.length > 0 && (
+            <View style={{ gap: 9, marginTop: 6 }}>
+              <SectionHeading>{`More ${post.category} near here`}</SectionHeading>
+              <View style={{ flexDirection: "row", gap: 9 }}>
+                {related.slice(0, 3).map((r) => (
+                  <Pressable
+                    key={r.post_id}
+                    onPress={() => router.push(`/post/${r.post_id}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel={r.caption}
+                    style={s.relatedTile}
+                  >
+                    {r.image ? (
+                      <Image
+                        source={{ uri: r.image }}
+                        style={StyleSheet.absoluteFill}
+                        contentFit="cover"
+                        transition={180}
+                      />
+                    ) : (
+                      <Hatch style={StyleSheet.absoluteFill} />
+                    )}
+                  </Pressable>
+                ))}
               </View>
             </View>
-          ) : null}
+          )}
         </View>
       </ScrollView>
+
+      <SafeAreaView edges={["bottom"]} style={s.actionBar}>
+        <Text style={s.likes}>{post.likes} likes</Text>
+        <PillButton label="Share" variant="ghost" size="sm" onPress={share} />
+        <PillButton
+          testID="save-btn"
+          label={saved ? "Saved" : "Save"}
+          variant="dark"
+          size="sm"
+          icon={saved ? "bookmark" : "bookmark-outline"}
+          onPress={requireAuth(() => toggleBookmark(post.post_id))}
+        />
+      </SafeAreaView>
+
+      <ReportSheet
+        visible={reporting}
+        onClose={() => setReporting(false)}
+        targetType="post"
+        targetId={post.post_id}
+        targetLabel="this post"
+      />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  loadWrap: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  body: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 60,
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    marginTop: -28,
-  },
-  chipsRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
-  metaChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  metaChipText: { fontFamily: fonts.bodySemi, fontSize: 11, color: colors.textSecondary, letterSpacing: 0.5 },
-  caption: { fontFamily: fonts.display, fontSize: 22, color: colors.textPrimary, lineHeight: 32 },
-  tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
-  tagChip: { backgroundColor: colors.surfaceAlt, borderRadius: radii.pill, paddingHorizontal: 11, paddingVertical: 5 },
-  tagText: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.primaryDeep },
-  interestRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radii.lg, padding: 10, marginTop: 18,
-  },
-  interestAvatars: { flexDirection: "row" },
-  iAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: "#fff", marginLeft: -10 },
-  interestText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 12, color: colors.textPrimary },
-  interestBtn: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.primary },
-  interestBtnText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 12 },
-  locationCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: radii.md,
-    marginTop: 18,
-  },
-  locationText: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.textPrimary },
-  creatorCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    borderRadius: radii.lg,
-    marginTop: 16,
-  },
-  creatorAvatar: { width: 48, height: 48, borderRadius: 24 },
-  creatorName: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.textPrimary },
-  creatorHandle: { fontFamily: fonts.body, fontSize: 12, color: colors.textSecondary, marginTop: 1 },
-  followBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
-  },
-  followBtnActive: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
-  followText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 12 },
-  followTextActive: { color: colors.textPrimary },
-  relatedTitle: { fontFamily: fonts.displayXL, fontSize: 20, color: colors.textPrimary },
-});
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: t.bg },
+    hero: { height: 430, backgroundColor: t.neutral[200] },
+    heroBar: {
+      position: "absolute",
+      left: 16,
+      right: 16,
+      top: 0,
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    overlayBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: radii.pill,
+      backgroundColor: "rgba(32,30,29,0.6)",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 8,
+    },
+
+    body: { padding: 20, gap: 13, paddingBottom: 28 },
+    title: { fontFamily: fonts.heading, fontSize: type.h3, color: t.text },
+    creatorRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+    creatorWho: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+    creatorName: { fontFamily: fonts.bodyBold, fontSize: type.bodySm, color: t.text },
+
+    caption: {
+      fontFamily: fonts.body,
+      fontSize: type.body,
+      lineHeight: 23,
+      color: t.text,
+    },
+    tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+
+    placeCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 11,
+      backgroundColor: t.surface,
+      borderRadius: radii.card,
+      paddingHorizontal: 15,
+      paddingVertical: 13,
+    },
+    placeName: { fontFamily: fonts.bodyBold, fontSize: type.meta, color: t.text },
+
+    relatedTile: {
+      flex: 1,
+      height: 82,
+      borderRadius: radii.md,
+      overflow: "hidden",
+      backgroundColor: t.neutral[200],
+    },
+
+    actionBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 20,
+      paddingTop: 12,
+      paddingBottom: space[2],
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      backgroundColor: t.bg,
+    },
+    likes: {
+      marginRight: "auto",
+      fontFamily: fonts.bodySemi,
+      fontSize: 12,
+      color: t.ink(58),
+    },
+  });
+}

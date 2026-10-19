@@ -1,191 +1,460 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from "react-native";
-import { Image } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
+/**
+ * Sign in — design panels `1n` (the two routes) and `1i` (code, and the
+ * rate-limited state).
+ *
+ * One screen covers signing in and signing up, because entering a valid code
+ * either finds your account or creates it. Nothing here may reveal which of
+ * those happened, or whether an address is registered at all: the copy says
+ * "if that address can receive mail", and every failure produces one message.
+ * The backend holds the same line — see auth.py — so the two agree.
+ */
 import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { colors, fonts, radii, shadow } from "@/src/theme";
+import { LOGIN } from "@/constants/testIds";
+import { ApiError } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { AuthEyebrow, AuthHeading, AuthShell } from "@/src/components/AuthKit";
+import {
+  Banner,
+  Card,
+  LabelledField,
+  OrRule,
+  PillButton,
+} from "@/src/components/organic";
+import { fonts, radii, space, type } from "@/src/theme";
+import { Theme, useTheme } from "@/src/theme-context";
+
+type Stage = "email" | "code";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CANCELLED = "Sign-in cancelled.";
+const CODE_LENGTH = 6;
 
 export default function LoginScreen() {
-  const { signIn, loading } = useAuth();
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
   const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string>("");
+  const { requestCode, verifyCode, signInWithGoogle, providers } = useAuth();
 
-  const handleSignIn = async () => {
+  const [stage, setStage] = useState<Stage>("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  /** Set only on a 429 — the design gives that its own, calmer treatment. */
+  const [throttled, setThrottled] = useState("");
+  const [expiresIn, setExpiresIn] = useState(10);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  const codeInput = useRef<TextInput>(null);
+
+  // Cooldown before "resend" is offered, so nobody burns through the
+  // per-address request throttle and locks themselves out for 15 minutes.
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const timer = setTimeout(() => setSecondsLeft((n) => n - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [secondsLeft]);
+
+  const emailValid = EMAIL_RE.test(email.trim());
+  const normalisedEmail = email.trim().toLowerCase();
+
+  const sendCode = async (isResend = false) => {
+    if (!emailValid || busy) return;
     setBusy(true);
-    setErr("");
+    setError("");
+    setNotice("");
+    setThrottled("");
     try {
-      await signIn();
-    } catch (e: any) {
-      setErr(e?.message || "Sign in failed");
+      const result = await requestCode(email);
+      setStage("code");
+      setSecondsLeft(30);
+      setCode("");
+      setExpiresIn(result.expires_in_minutes);
+      // Outside production the server returns the code, so development does not
+      // depend on SES — which is still sandboxed.
+      setNotice(
+        result.dev_code
+          ? `Dev mode — your code is ${result.dev_code}`
+          : isResend
+            ? "New code sent."
+            : "",
+      );
+      setTimeout(() => codeInput.current?.focus(), 250);
+    } catch (e) {
+      // A 429 is not a failure of the account, and the message already carries
+      // the real wait from the server. Everything else is one generic line.
+      if (e instanceof ApiError && e.status === 429) {
+        setThrottled(e.message);
+        setStage("code");
+      } else {
+        setError(
+          e instanceof ApiError ? e.message : "Could not send a code. Please try again.",
+        );
+      }
     } finally {
       setBusy(false);
     }
   };
 
+  const verify = async () => {
+    if (code.length < 4 || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await verifyCode(email, code);
+      router.replace("/(tabs)");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "That code did not work.");
+      setCode("");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const google = async () => {
+    if (googleBusy) return;
+    setGoogleBusy(true);
+    setError("");
+    try {
+      await signInWithGoogle();
+      router.replace("/(tabs)");
+    } catch (e) {
+      // Backing out of the consent screen is a choice, not a failure.
+      if (e instanceof ApiError && e.message === CANCELLED) {
+        setError("");
+      } else {
+        setError(e instanceof ApiError ? e.message : "Google sign-in failed.");
+      }
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
+
+  const backToEmail = () => {
+    setStage("email");
+    setCode("");
+    setError("");
+    setNotice("");
+    setThrottled("");
+  };
+
+  const googleButton = providers?.google ? (
+    <PillButton
+      testID={LOGIN.googleButton}
+      label="Continue with Google"
+      variant="ghost"
+      size="lg"
+      block
+      icon="logo-google"
+      busy={googleBusy}
+      onPress={google}
+    />
+  ) : null;
+
+  // ── stage 1 — the two routes ────────────────────────────────────────────────
+  if (stage === "email") {
+    return (
+      <AuthShell>
+        <View style={{ paddingTop: 56, gap: 13 }}>
+          <AuthEyebrow>Around You · {t.cityName}</AuthEyebrow>
+          <AuthHeading
+            title="Save it, follow them, join in."
+            subtitle="Browsing needs nothing. Keeping things does."
+          />
+        </View>
+
+        {!!error && <Banner tone="accent" body={error} />}
+
+        <View style={{ paddingTop: 30, gap: 8 }}>
+          <LabelledField label="Email">
+            <View style={[s.inputWrap, emailValid && s.inputWrapActive]}>
+              <TextInput
+                testID={LOGIN.emailInput}
+                value={email}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  setError("");
+                }}
+                onSubmitEditing={() => sendCode()}
+                placeholder="you@example.com"
+                placeholderTextColor={t.ink(45)}
+                style={s.input}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                autoComplete="email"
+                returnKeyType="go"
+              />
+            </View>
+          </LabelledField>
+
+          <PillButton
+            testID={LOGIN.submitButton}
+            label="Email me a code"
+            size="lg"
+            block
+            disabled={!emailValid}
+            busy={busy}
+            onPress={() => sendCode()}
+            style={{ marginTop: 6 }}
+          />
+        </View>
+
+        {googleButton ? (
+          <View style={{ paddingTop: 22, gap: 22 }}>
+            <OrRule />
+            {googleButton}
+          </View>
+        ) : null}
+
+        <Card style={{ marginTop: 30 }}>
+          <Text style={s.cardTitle}>There&apos;s no password to forget</Text>
+          <Text style={s.cardBody}>
+            A code proves the address is yours, so there&apos;s nothing else to set up
+            and nothing to verify afterwards.
+          </Text>
+        </Card>
+
+        <View style={{ flex: 1, minHeight: 24 }} />
+
+        <Pressable
+          testID={LOGIN.guestLink}
+          onPress={() => router.replace("/(tabs)")}
+          hitSlop={8}
+          accessibilityRole="button"
+          style={{ alignItems: "center", paddingVertical: 10 }}
+        >
+          <Text style={s.browse}>Just browse for now</Text>
+        </Pressable>
+
+        <Text style={s.legal}>
+          By continuing you agree to the terms and privacy policy.
+        </Text>
+      </AuthShell>
+    );
+  }
+
+  // ── stage 2 — the code, and the rate-limited state ──────────────────────────
   return (
-    <View style={styles.root} testID="login-screen">
-      {/* Soft peach blobs in background */}
-      <View style={[styles.blob, { top: -120, right: -100, backgroundColor: colors.blob, opacity: 0.7 }]} />
-      <View style={[styles.blob, { top: 120, left: -140, width: 320, height: 320, backgroundColor: colors.blobSoft, opacity: 0.8 }]} />
-      <View style={[styles.blob, { bottom: -80, right: -80, width: 280, height: 280, backgroundColor: colors.blob, opacity: 0.5 }]} />
-
-      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between", paddingHorizontal: 24 }}>
-          <Animated.View entering={FadeIn.duration(500)} style={styles.topRow}>
-            <View style={styles.logoPill}>
-              <View style={styles.logoIcon}>
-                <Ionicons name="location" size={14} color="#fff" />
-              </View>
-              <Text style={styles.logoText}>around you</Text>
-            </View>
-            <Pressable testID="guest-btn-top" onPress={() => router.replace("/(tabs)")} style={styles.skipBtn}>
-              <Text style={styles.skipText}>Skip</Text>
-            </Pressable>
-          </Animated.View>
-
-          <Animated.View entering={FadeInDown.delay(150).duration(600)} style={styles.heroImageWrap}>
-            <Image
-              source={{ uri: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=900&q=80" }}
-              style={styles.heroImage}
-              contentFit="cover"
-            />
-            <View style={styles.heroOverlay}>
-              <View style={styles.heroBadge}>
-                <View style={styles.heroBadgeIcon}>
-                  <Ionicons name="flame" size={12} color="#fff" />
-                </View>
-                <View>
-                  <Text style={styles.heroBadgeTitle}>Trending Near You</Text>
-                  <Text style={styles.heroBadgeSub}>14 stories today</Text>
-                </View>
-              </View>
-              <View style={styles.heroRating}>
-                <Ionicons name="star" size={12} color={colors.primary} />
-                <Text style={styles.heroRatingText}>4.9{"\n"}<Text style={styles.heroRatingSub}>Local picks</Text></Text>
-              </View>
-            </View>
-            <View style={styles.heroFooter}>
-              <View style={styles.avatarStack}>
-                <Image source={{ uri: "https://i.pravatar.cc/40?img=12" }} style={[styles.stackedAvatar, { marginLeft: 0 }]} />
-                <Image source={{ uri: "https://i.pravatar.cc/40?img=32" }} style={styles.stackedAvatar} />
-                <Image source={{ uri: "https://i.pravatar.cc/40?img=45" }} style={styles.stackedAvatar} />
-              </View>
-              <Text style={styles.neighborsText}>2.4k neighbors{"\n"}exploring today</Text>
-              <View style={styles.arrowBtn}>
-                <Ionicons name="arrow-forward" size={18} color="#fff" />
-              </View>
-            </View>
-          </Animated.View>
-
-          <Animated.View entering={FadeInDown.delay(280).duration(600)} style={styles.bottom}>
-            <View style={styles.welcomeRow}>
-              <View style={styles.welcomeDot} />
-              <Text style={styles.welcomeText}>WELCOME</Text>
-            </View>
-            <Text style={styles.headline}>
-              Your neighborhood,{"\n"}<Text style={{ color: colors.primary, fontStyle: "italic" }}>beautifully curated.</Text>
+    <AuthShell showBack onBack={backToEmail}>
+      <View style={{ paddingTop: 44, gap: 12 }}>
+        <AuthHeading
+          title="Check your mail."
+          subtitle={
+            <Text>
+              If <Text style={s.strong}>{normalisedEmail}</Text> can receive mail, a
+              six-digit code is on its way. It expires in {expiresIn} minutes.
             </Text>
-            <Text style={styles.sub}>
-              Discover hyper-local stories, hidden gems, and community happenings — sourced from the people who know your area best.
-            </Text>
+          }
+        />
+      </View>
 
-            <Pressable
-              testID="google-signin-btn"
-              onPress={handleSignIn}
-              disabled={busy || loading}
-              style={({ pressed }) => [styles.btn, pressed && { transform: [{ scale: 0.98 }] }]}
-            >
-              {busy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={18} color="#fff" />
-                  <Text style={styles.btnText}>Get Started with Google</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#fff" />
-                </>
-              )}
-            </Pressable>
+      <CodeBoxes
+        ref={codeInput}
+        value={code}
+        onChange={(v) => {
+          setCode(v);
+          setError("");
+        }}
+        onComplete={verify}
+      />
 
-            <Pressable
-              testID="guest-btn"
-              onPress={() => router.replace("/(tabs)")}
-              style={({ pressed }) => [styles.guestBtn, pressed && { opacity: 0.7 }]}
-            >
-              <Text style={styles.guestText}>
-                Or <Text style={{ color: colors.primary, fontFamily: fonts.bodyBold }}>browse as a guest</Text>
-              </Text>
-            </Pressable>
+      {!!error && <Banner tone="accent" body={error} />}
+      {!error && !!notice && <Banner tone="accent2" body={notice} />}
 
-            {err ? <Text style={styles.err}>{err}</Text> : null}
-          </Animated.View>
-        </ScrollView>
-      </SafeAreaView>
-    </View>
+      <View style={{ paddingTop: 18, gap: 11 }}>
+        <PillButton
+          testID={LOGIN.verifyButton}
+          label="Continue"
+          size="lg"
+          block
+          disabled={code.length < 4}
+          busy={busy}
+          onPress={verify}
+        />
+        {googleButton ? (
+          <>
+            <OrRule />
+            {googleButton}
+          </>
+        ) : null}
+      </View>
+
+      {throttled ? (
+        <View style={{ marginTop: 26 }}>
+          <Banner
+            tone="accent2"
+            title="Rate-limited state"
+            body={
+              providers?.google
+                ? `${throttled} Or use Google, which works right now.`
+                : throttled
+            }
+            footnote="Nothing's wrong with your account."
+          />
+        </View>
+      ) : null}
+
+      <View style={{ flex: 1, minHeight: 20 }} />
+
+      <Pressable
+        testID={LOGIN.resendLink}
+        onPress={() => sendCode(true)}
+        disabled={secondsLeft > 0 || busy}
+        hitSlop={8}
+        accessibilityRole="button"
+        style={{ alignItems: "center", paddingVertical: 10 }}
+      >
+        <Text style={[s.browse, secondsLeft > 0 && { color: t.ink(45) }]}>
+          {secondsLeft > 0 ? `Send a new code in ${secondsLeft}s` : "Send a new code"}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        testID={LOGIN.changeEmailLink}
+        onPress={backToEmail}
+        hitSlop={8}
+        accessibilityRole="button"
+        style={{ alignItems: "center", paddingVertical: 4 }}
+      >
+        <Text style={s.legal}>Use a different email</Text>
+      </Pressable>
+
+      <Text style={[s.legal, { marginTop: 14 }]}>
+        Entering a valid code signs you in, or sets you up if you&apos;re new. Same
+        screen either way.
+      </Text>
+    </AuthShell>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-  blob: { position: "absolute", width: 360, height: 360, borderRadius: 999 },
-  safe: { flex: 1 },
-  topRow: { paddingTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  logoPill: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingLeft: 4, paddingRight: 14, paddingVertical: 4, borderRadius: radii.pill,
-    backgroundColor: colors.surface, ...shadow,
-  },
-  logoIcon: {
-    width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary,
-    alignItems: "center", justifyContent: "center",
-  },
-  logoText: { color: colors.textPrimary, fontSize: 14, fontFamily: fonts.bodyBold },
-  skipBtn: {
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: radii.pill,
-    backgroundColor: colors.surface, ...shadow,
-  },
-  skipText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.textPrimary },
-  heroImageWrap: {
-    marginTop: 28, alignSelf: "center", width: "100%", height: 360,
-    borderRadius: radii.xl, overflow: "hidden", backgroundColor: colors.surfaceAlt, ...shadow,
-  },
-  heroImage: { width: "100%", height: "100%" },
-  heroOverlay: { position: "absolute", top: 14, left: 14, right: 14, flexDirection: "row", justifyContent: "space-between" },
-  heroBadge: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: "rgba(255,255,255,0.95)", paddingLeft: 4, paddingRight: 12, paddingVertical: 4, borderRadius: radii.pill,
-  },
-  heroBadgeIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  heroBadgeTitle: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.textPrimary },
-  heroBadgeSub: { fontFamily: fonts.body, fontSize: 10, color: colors.textSecondary },
-  heroRating: { backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: radii.md, flexDirection: "row", alignItems: "center", gap: 4 },
-  heroRatingText: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.textPrimary, lineHeight: 14 },
-  heroRatingSub: { fontFamily: fonts.body, fontSize: 9, color: colors.textSecondary },
-  heroFooter: {
-    position: "absolute", bottom: 14, left: 14, right: 14, flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 10, paddingVertical: 8, borderRadius: radii.lg,
-  },
-  avatarStack: { flexDirection: "row" },
-  stackedAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: "#fff", marginLeft: -10 },
-  neighborsText: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 11, color: colors.textPrimary, lineHeight: 13 },
-  arrowBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  bottom: { paddingBottom: 20, paddingTop: 28, gap: 14 },
-  welcomeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  welcomeDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
-  welcomeText: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 2, color: colors.primary },
-  headline: { color: colors.textPrimary, fontFamily: fonts.displayXL, fontSize: 36, lineHeight: 40, letterSpacing: -0.8 },
-  sub: { color: colors.textSecondary, fontFamily: fonts.body, fontSize: 14, lineHeight: 21 },
-  btn: {
-    marginTop: 10, height: 58, backgroundColor: colors.primary, borderRadius: radii.pill,
-    alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 10,
-    shadowColor: colors.primary, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 10,
-  },
-  btnText: { color: "#fff", fontFamily: fonts.bodyBold, fontSize: 15 },
-  guestBtn: { paddingVertical: 8, alignItems: "center" },
-  guestText: { color: colors.textSecondary, fontFamily: fonts.body, fontSize: 14 },
-  err: { color: "#B23A3A", textAlign: "center", fontFamily: fonts.body, fontSize: 12 },
+/**
+ * Six boxes over one hidden field. Splitting the input into six real inputs
+ * fights autofill and paste — people paste "123 456" straight out of their mail
+ * client — so this keeps a single field and draws the boxes.
+ */
+const CodeBoxes = React.forwardRef<
+  TextInput,
+  { value: string; onChange: (v: string) => void; onComplete: () => void }
+>(function CodeBoxes({ value, onChange, onComplete }, ref) {
+  const t = useTheme();
+  const s = useMemo(() => makeStyles(t), [t]);
+  const inner = useRef<TextInput>(null);
+  React.useImperativeHandle(ref, () => inner.current as TextInput);
+
+  return (
+    <Pressable
+      onPress={() => inner.current?.focus()}
+      accessibilityRole="button"
+      accessibilityLabel="Enter your six-digit code"
+      style={s.codeRow}
+    >
+      {Array.from({ length: CODE_LENGTH }).map((_, i) => {
+        const char = value[i];
+        const isCursor = i === value.length;
+        return (
+          <View key={i} style={[s.codeBox, isCursor && s.codeBoxActive]}>
+            {char ? (
+              <Text style={s.codeChar}>{char}</Text>
+            ) : isCursor ? (
+              <View style={s.caret} />
+            ) : null}
+          </View>
+        );
+      })}
+
+      <TextInput
+        ref={inner}
+        testID={LOGIN.codeInput}
+        value={value}
+        onChangeText={(v) => {
+          const digits = v.replace(/\D/g, "").slice(0, CODE_LENGTH);
+          onChange(digits);
+          if (digits.length === CODE_LENGTH) onComplete();
+        }}
+        keyboardType="number-pad"
+        autoComplete="one-time-code"
+        textContentType="oneTimeCode"
+        maxLength={CODE_LENGTH}
+        // Off-screen rather than display:none — a hidden input can't take focus
+        // on web, and opacity:0 alone still captures taps meant for the boxes.
+        style={s.hiddenInput}
+        autoFocus={Platform.OS !== "web"}
+      />
+    </Pressable>
+  );
 });
+
+function makeStyles(t: Theme) {
+  return StyleSheet.create({
+    inputWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: t.bg,
+      borderWidth: 2,
+      borderColor: t.divider,
+      borderRadius: radii.pill,
+      paddingHorizontal: 20,
+      paddingVertical: Platform.OS === "web" ? 14 : 15,
+    },
+    inputWrapActive: { borderColor: t.accent },
+    input: {
+      flex: 1,
+      fontFamily: fonts.bodySemi,
+      fontSize: type.body,
+      color: t.text,
+      paddingVertical: 0,
+      // Removes the focus ring react-native-web adds on top of our own border.
+      ...(Platform.OS === "web" ? { outlineStyle: "none" as never } : null),
+    },
+
+    codeRow: { flexDirection: "row", gap: 8, paddingTop: 26 },
+    codeBox: {
+      flex: 1,
+      height: 62,
+      borderRadius: radii.md,
+      backgroundColor: t.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    codeBoxActive: {
+      backgroundColor: t.bg,
+      borderWidth: 2,
+      borderColor: t.accent,
+    },
+    codeChar: { fontFamily: fonts.heading, fontSize: 26, color: t.text },
+    caret: { width: 2, height: 26, backgroundColor: t.accent },
+    hiddenInput: {
+      position: "absolute",
+      opacity: 0,
+      left: 0,
+      top: 0,
+      width: "100%",
+      height: 62,
+      color: "transparent",
+    },
+
+    cardTitle: { fontFamily: fonts.bodyBold, fontSize: type.meta, color: t.text },
+    cardBody: {
+      fontFamily: fonts.body,
+      fontSize: type.meta,
+      lineHeight: 20,
+      color: t.ink(66),
+    },
+    strong: { fontFamily: fonts.bodyBold, color: t.text },
+    browse: { fontFamily: fonts.bodySemi, fontSize: type.bodySm, color: t.accentRamp[700] },
+    legal: {
+      fontFamily: fonts.body,
+      fontSize: 11.5,
+      lineHeight: 17,
+      textAlign: "center",
+      color: t.ink(50),
+      paddingBottom: space[2],
+    },
+  });
+}

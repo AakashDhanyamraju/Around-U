@@ -1,0 +1,14 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# Secrets are injected at runtime, never baked into the image.
+.env
+.env.*
+!.env.example
+tests/
+*.md
